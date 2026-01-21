@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: EcoGo
+  data:
+    mongodb:
+      uri: mongodb://172.20.10.6:27017/EcoGo
+      database: EcoGo
+
+logging:
+  level:
+    com.example.EcoGo: debug
+    org.springframework.data.mongodb: debug
+  file:
+    name: logs/eco-go.log
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
