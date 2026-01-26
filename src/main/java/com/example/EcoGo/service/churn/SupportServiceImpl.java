@@ -2,25 +2,30 @@ package com.example.EcoGo.service.churn;
 
 import org.springframework.stereotype.Service;
 
-/**
- * SupportService 实现类
- *
- * 当前版本：
- * - 不接 Mongo
- * - 不接模型
- * - 用于先跑通调用链
- */
 @Service
 public class SupportServiceImpl implements SupportService {
 
+    private final FeatureExtractor featureExtractor;
+    private final ModelRunner modelRunner;
+    private final Thresholds thresholds;
+
+    public SupportServiceImpl(FeatureExtractor featureExtractor,
+                              ModelRunner modelRunner,
+                              Thresholds thresholds) {
+        this.featureExtractor = featureExtractor;
+        this.modelRunner = modelRunner;
+        this.thresholds = thresholds;
+    }
+
     @Override
     public ChurnRiskLevel getChurnRiskLevel(String userId) {
-        // TODO:
-        // 1. 从 Mongo 抽取特征
-        // 2. 判断是否数据充足
-        // 3. 调用内嵌模型推理
-        // 4. 映射为 LOW / MEDIUM / HIGH
+        ChurnFeatureVector fv = featureExtractor.extract(userId);
 
-        return ChurnRiskLevel.INSUFFICIENT_DATA;
+        if (fv == null || fv.isInsufficient()) {
+            return ChurnRiskLevel.INSUFFICIENT_DATA;
+        }
+
+        double p = modelRunner.predictProbability(fv.toArray());
+        return thresholds.toLevel(p);
     }
 }
