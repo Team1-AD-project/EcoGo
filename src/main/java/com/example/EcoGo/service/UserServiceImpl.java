@@ -48,8 +48,8 @@ public class UserServiceImpl implements UserInterface {
 
     @Override
     public AuthDto.RegisterResponse register(AuthDto.MobileRegisterRequest request) {
-        if (request.email == null || !request.email.endsWith("@nus.edu.cn")) {
-            throw new BusinessException(ErrorCode.PARAM_ERROR, "仅支持NUS邮箱注册 (@nus.edu.cn)");
+        if (request.email == null || !request.email.endsWith("@u.nus.edu")) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "仅支持NUS邮箱注册 (@u.nus.edu)");
         }
 
         if (userRepository.findByEmail(request.email).isPresent()) {
