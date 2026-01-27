@@ -1,19 +1,22 @@
 package com.example.EcoGo.model;
 
+import java.time.LocalDateTime;
+
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
-import java.time.LocalDateTime;
+import org.springframework.data.mongodb.core.mapping.Field;
 
 /**
  * 碳积分记录实体
  * 记录用户获取/消耗碳积分的明细
  */
-@Document(collection = "carbon_records")
+@Document(collection = "transactions")
 public class CarbonRecord {
     @Id
     private String id;
     private String userId;
     private String type; // EARN(获取), SPEND(消耗)
+    @Field("amount")
     private Integer credits; // 积分数量
     private String source; // 来源：ACTIVITY(活动), DAILY_CHECK(每日签到), EXCHANGE(兑换), ADMIN(管理员调整)
     private String description; // 描述

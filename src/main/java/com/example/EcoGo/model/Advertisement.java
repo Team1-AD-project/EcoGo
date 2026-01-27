@@ -1,9 +1,10 @@
 package com.example.EcoGo.model;
 
+import java.time.LocalDate;
+
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
-import java.time.LocalDate;
 
 @Document(collection = "advertisements")
 public class Advertisement {
@@ -16,10 +17,10 @@ public class Advertisement {
     @Field("status")
     private String status; // Active, Inactive, Paused
 
-    @Field("start_date") // Explicitly map to the database field name
+    @Field("startDate") // Explicitly map to the database field name
     private LocalDate startDate;
 
-    @Field("end_date") // Explicitly map to the database field name
+    @Field("endDate") // Explicitly map to the database field name
     private LocalDate endDate;
 
     public Advertisement() {
