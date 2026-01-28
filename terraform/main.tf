@@ -9,12 +9,18 @@ terraform {
     }
   }
 
-  backend "s3" {
-    bucket         = "ecogo-terraform-state"
-    key            = "ecogo/terraform.tfstate"
-    region         = "us-east-1"
-    encrypt        = true
-    dynamodb_table = "ecogo-terraform-locks"
+  # S3 backend configuration - Uncomment and configure when AWS resources are ready
+  # backend "s3" {
+  #   bucket         = "ecogo-terraform-state"
+  #   key            = "ecogo/terraform.tfstate"
+  #   region         = "us-east-1"
+  #   encrypt        = true
+  #   dynamodb_table = "ecogo-terraform-locks"
+  # }
+  
+  # Using local backend for now
+  backend "local" {
+    path = "terraform.tfstate"
   }
 }
 
