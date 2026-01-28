@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ic_launcher_background">#4CAF50</color>
+    <color name="green_primary">#4CAF50</color>
+    <color name="green_dark">#388E3C</color>
+    <color name="green_light">#8BC34A</color>
+
+    <!-- 导航路线颜色 -->
+    <color name="route_remaining">#4285F4</color>   <!-- 剩余路线：蓝色（类似百度/谷歌地图） -->
+    <color name="route_traveled">#9E9E9E</color>    <!-- 已走路线：灰色 -->
+</resources>
