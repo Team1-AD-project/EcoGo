@@ -166,32 +166,59 @@ jobs:
         with:
           name: build-artifacts
 
+      - name: Check AWS Credentials
+        id: check_aws
+        run: |
+          if [ -n "${{ secrets.AWS_ACCESS_KEY_ID }}" ] && [ -n "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ]; then
+            echo "aws_configured=true" >> $GITHUB_OUTPUT
+          else
+            echo "aws_configured=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Configure AWS credentials
+        if: steps.check_aws.outputs.aws_configured == 'true'
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
-        continue-on-error: true
+
+      - name: AWS Not Configured Warning
+        if: steps.check_aws.outputs.aws_configured != 'true'
+        run: |
+          echo "⚠️ AWS credentials not configured. Skipping Terraform deployment."
+          echo "📋 To enable AWS deployment, configure the following secrets:"
+          echo "   - AWS_ACCESS_KEY_ID"
+          echo "   - AWS_SECRET_ACCESS_KEY"
+          echo "📖 See .github/SECRETS-TEMPLATE.md for details"
 
       - name: Set up Terraform
+        if: steps.check_aws.outputs.aws_configured == 'true'
         uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.5.0
 
       - name: Terraform Init
+        if: steps.check_aws.outputs.aws_configured == 'true'
         run: |
           cd terraform
           terraform init -upgrade
-        continue-on-error: true
+
+      - name: Terraform Validate
+        if: steps.check_aws.outputs.aws_configured == 'true'
+        run: |
+          cd terraform
+          terraform validate
 
       - name: Terraform Plan
+        if: steps.check_aws.outputs.aws_configured == 'true'
         run: |
           cd terraform
           terraform plan -out=tfplan
         continue-on-error: true
 
       - name: Terraform Apply
+        if: steps.check_aws.outputs.aws_configured == 'true' && github.ref == 'refs/heads/main'
         run: |
           cd terraform
           terraform apply -auto-approve tfplan
@@ -202,11 +229,26 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ansible
 
+      - name: Check Ansible Inventory
+        id: check_inventory
+        run: |
+          if grep -q "^[^#].*ansible_host" ansible/inventory.ini; then
+            echo "has_hosts=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_hosts=false" >> $GITHUB_OUTPUT
+          fi
+        continue-on-error: true
+
       - name: Deploy with Ansible
+        if: steps.check_inventory.outputs.has_hosts == 'true'
         run: |
           cd ansible
-          ansible-playbook deploy.yml -i inventory.ini
+          ansible-playbook deploy.yml -i inventory.ini --check
         continue-on-error: true
+        
+      - name: Skip Ansible Deployment
+        if: steps.check_inventory.outputs.has_hosts != 'true'
+        run: echo "⚠️ No valid hosts configured in Ansible inventory. Skipping deployment. Configure real server IPs in ansible/inventory.ini"
 
   # Stage 6: Run Integration Tests
   integration-tests:
@@ -249,6 +291,16 @@ jobs:
     name: DAST with OWASP ZAP
     needs: integration-tests
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/cicdfeature'
+    services:
+      mongodb:
+        image: mongo:latest
+        options: >-
+          --health-cmd mongosh
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 27017:27017
     steps:
       - uses: actions/checkout@v4
 
@@ -263,17 +315,27 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Wait for MongoDB
+        run: sleep 10
+
       - name: Start Application
         run: |
-          java -jar EcoGo-*.jar &
-          sleep 30
+          nohup java -jar EcoGo-*.jar > app.log 2>&1 &
+          sleep 40
+          echo "Application logs:"
+          cat app.log || true
         env:
           SPRING_DATA_MONGODB_URI: mongodb://localhost:27017/ecogo
+          
+      - name: Check Application Health
+        run: |
+          curl -f http://localhost:8090/actuator/health || echo "Health check failed"
+        continue-on-error: true
 
       - name: Run OWASP ZAP Scan
         uses: zaproxy/action-baseline@v0.7.0
         with:
-          target: 'http://localhost:8080'
+          target: 'http://localhost:8090'
           rules_file_name: '.zap/rules.tsv'
           cmd_options: '-a'
         continue-on-error: true
