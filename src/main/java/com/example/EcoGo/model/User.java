@@ -10,6 +10,8 @@ public class User {
     @Id
     private String id;
     private String userid;
+    private String username;
+    private String email;
     private String phone;
     private String password;
     private String nickname;
@@ -31,8 +33,7 @@ public class User {
 
     private ActivityMetrics activityMetrics;
 
-    // Getters and Setters omitted for brevity, but needed for Jackson/Mongo
-    // Using simple approach since Lombok isn't available
+    // Getters and Setters
 
     public String getId() {
         return id;
@@ -48,6 +49,22 @@ public class User {
 
     public void setUserid(String userid) {
         this.userid = userid;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
     }
 
     public String getPhone() {
@@ -170,12 +187,12 @@ public class User {
         this.activityMetrics = activityMetrics;
     }
 
-    // Nested Classes
+    // Nested Classes (unchanged)
 
     public static class Vip {
         private boolean isActive;
         private LocalDateTime expiryDate;
-        private String plan; // MONTHLY, YEARLY
+        private String plan;
         private boolean autoRenew;
         private int pointsMultiplier;
 
@@ -357,6 +374,8 @@ public class User {
         private int activeDays30d;
         private int lastTripDays;
         private int loginFrequency7d;
+        // Store recent login dates for calculation
+        private java.util.List<java.time.LocalDate> loginDates = new java.util.ArrayList<>();
 
         public int getActiveDays7d() {
             return activeDays7d;
@@ -388,6 +407,14 @@ public class User {
 
         public void setLoginFrequency7d(int loginFrequency7d) {
             this.loginFrequency7d = loginFrequency7d;
+        }
+
+        public java.util.List<java.time.LocalDate> getLoginDates() {
+            return loginDates;
+        }
+
+        public void setLoginDates(java.util.List<java.time.LocalDate> loginDates) {
+            this.loginDates = loginDates;
         }
     }
 }
