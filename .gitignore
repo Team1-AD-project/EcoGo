@@ -31,3 +31,54 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# logs
+logs/
+*.log
+*.gz
+
+# maven temp
+cp.txt
+
+# local tools / temp
+tools/
+
+### Android ###
+# Gradle files
+.gradle/
+android-app/.gradle/
+android-app/.idea/
+android-app/build/
+android-app/app/build/
+android-app/local.properties
+android-app/local.properties.template
+
+# Android Studio
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+
+# Local configuration file (sdk path, etc)
+local.properties
+
+# Proguard folder
+proguard/
+
+# Android Studio Navigation editor temp files
+.navigation/
+
+# Android Studio captures folder
+captures/
+
+# Keystore files
+*.jks
+*.keystore
+
+# External native build folder
+.externalNativeBuild/
+.cxx/
+
+# Google Services (API keys - should not be committed)
+# google-services.json
