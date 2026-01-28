@@ -39,7 +39,7 @@ public class SecurityConfig {
 
                         // Secured Endpoints
                         .requestMatchers("/api/v1/mobile/**").authenticated()
-                        .requestMatchers("/api/v1/web/**").authenticated()
+                        .requestMatchers("/api/v1/web/**").hasRole("ADMIN")
 
                         // Default
                         .anyRequest().permitAll() // Keep other paths open for development

@@ -53,8 +53,12 @@ public class UserController {
     }
 
     @PostMapping("/api/v1/mobile/users/logout")
-    public ResponseMessage<Void> logoutMobile(@RequestBody Map<String, String> body) {
-        userService.logoutMobile(body.get("token"), body.get("user_id"));
+    public ResponseMessage<Void> logoutMobile(@RequestHeader("Authorization") String authHeader) {
+        String token = authHeader.replace("Bearer ", "");
+        // Ideally we extract UserID from token here or in service
+        // For keeping the service interface clean, let's pass token.
+        // Service implementation will validate and extract if needed.
+        userService.logoutMobile(token, null); // userId is optional or extracted in service
         return ResponseMessage.success(null);
     }
 
@@ -78,8 +82,9 @@ public class UserController {
     }
 
     @PostMapping("/api/v1/web/users/logout")
-    public ResponseMessage<Map<String, Boolean>> logoutWeb(@RequestBody Map<String, String> body) {
-        userService.logoutWeb(body.get("token"));
+    public ResponseMessage<Map<String, Boolean>> logoutWeb(@RequestHeader("Authorization") String authHeader) {
+        String token = authHeader.replace("Bearer ", "");
+        userService.logoutWeb(token);
         return ResponseMessage.success(Map.of("success", true));
     }
 
