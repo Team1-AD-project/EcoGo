@@ -181,6 +181,14 @@ public class UserServiceImpl implements UserInterface {
 
     @Override
     public void logoutMobile(String token, String userId) {
+        if (userId == null) {
+            try {
+                userId = jwtUtils.validateToken(token).getSubject();
+            } catch (Exception e) {
+                logger.warn("Logout with invalid token");
+                return;
+            }
+        }
         // Implementation depends on Token blacklist strategy (Redis)
         // For now, stateless JWT, client side discard
         logger.info("User logout: {}", userId);
