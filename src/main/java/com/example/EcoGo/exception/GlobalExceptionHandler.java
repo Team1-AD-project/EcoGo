@@ -31,7 +31,8 @@ public class GlobalExceptionHandler {
         return new ResponseMessage<>(ErrorCode.PARAM_ERROR.getCode(), message, null);
     }
 
-    // Handle object parameter validation exceptions (MethodArgumentNotValidException)
+    // Handle object parameter validation exceptions
+    // (MethodArgumentNotValidException)
     @ExceptionHandler(org.springframework.web.bind.MethodArgumentNotValidException.class)
     @ResponseBody
     public ResponseMessage<?> handlerMethodArgumentNotValidException(
