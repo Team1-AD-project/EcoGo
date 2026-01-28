@@ -1,5 +1,19 @@
 package com.example.EcoGo.controller;
 
+import java.util.Map;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
 import com.example.EcoGo.dto.AuthDto;
 import com.example.EcoGo.dto.ResponseMessage;
 import com.example.EcoGo.dto.UserProfileDto;
@@ -7,12 +21,6 @@ import com.example.EcoGo.dto.UserResponseDto;
 import com.example.EcoGo.exception.BusinessException;
 import com.example.EcoGo.exception.errorcode.ErrorCode;
 import com.example.EcoGo.interfacemethods.UserInterface;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.*;
-
-import java.util.Map;
 
 /**
  * 用户接口控制器
