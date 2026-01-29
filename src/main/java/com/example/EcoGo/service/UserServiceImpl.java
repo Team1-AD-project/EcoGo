@@ -16,8 +16,11 @@ import com.example.EcoGo.exception.errorcode.ErrorCode;
 import com.example.EcoGo.interfacemethods.UserInterface;
 import com.example.EcoGo.model.User;
 import com.example.EcoGo.repository.UserRepository;
-import com.example.EcoGo.utils.JwtUtils;
-import com.example.EcoGo.utils.PasswordUtils;
+import com.example.EcoGo.security.jwt.JwtTokenProvider;
+import com.example.EcoGo.security.jwt.JwtTokenValidator;
+import com.example.EcoGo.security.password.MultiAlgorithmPasswordEncoder;
+import com.example.EcoGo.security.password.PasswordPolicyValidator;
+import com.example.EcoGo.security.audit.SecurityAuditLogger;
 
 @Service
 public class UserServiceImpl implements UserInterface {
@@ -25,13 +28,25 @@ public class UserServiceImpl implements UserInterface {
     private static final Logger logger = LoggerFactory.getLogger(UserServiceImpl.class);
 
     private final UserRepository userRepository;
-    private final PasswordUtils passwordUtils;
-    private final JwtUtils jwtUtils;
+    private final MultiAlgorithmPasswordEncoder passwordEncoder;
+    private final PasswordPolicyValidator passwordPolicyValidator;
+    private final JwtTokenProvider jwtTokenProvider;
+    private final JwtTokenValidator jwtTokenValidator;
+    private final SecurityAuditLogger auditLogger;
 
-    public UserServiceImpl(UserRepository userRepository, PasswordUtils passwordUtils, JwtUtils jwtUtils) {
+    public UserServiceImpl(
+            UserRepository userRepository,
+            MultiAlgorithmPasswordEncoder passwordEncoder,
+            PasswordPolicyValidator passwordPolicyValidator,
+            JwtTokenProvider jwtTokenProvider,
+            JwtTokenValidator jwtTokenValidator,
+            SecurityAuditLogger auditLogger) {
         this.userRepository = userRepository;
-        this.passwordUtils = passwordUtils;
-        this.jwtUtils = jwtUtils;
+        this.passwordEncoder = passwordEncoder;
+        this.passwordPolicyValidator = passwordPolicyValidator;
+        this.jwtTokenProvider = jwtTokenProvider;
+        this.jwtTokenValidator = jwtTokenValidator;
+        this.auditLogger = auditLogger;
     }
 
     @Override
@@ -68,7 +83,13 @@ public class UserServiceImpl implements UserInterface {
         user.setUserid(userid);
         user.setEmail(request.email);
         // user.setPhone(request.phone); // Removed in this flow
-        user.setPassword(passwordUtils.encode(request.password));
+        // 验证密码策略
+        var passwordValidation = passwordPolicyValidator.validatePassword(request.password, request.email);
+        if (!passwordValidation.isValid()) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, passwordValidation.getFirstError());
+        }
+
+        user.setPassword(passwordEncoder.encode(request.password));
         user.setNickname(request.nickname);
 
         // Set Default Preferences (User doesn't provide them at registration)
@@ -183,12 +204,24 @@ public class UserServiceImpl implements UserInterface {
     public void logoutMobile(String token, String userId) {
         if (userId == null) {
             try {
-                userId = jwtUtils.validateToken(token).getSubject();
+                userId = jwtTokenValidator.validateToken(token).getSubject();
             } catch (Exception e) {
                 logger.warn("Logout with invalid token");
                 return;
             }
         }
+        
+        // 记录登出
+        User user = userRepository.findById(userId).orElse(null);
+        if (user != null) {
+            auditLogger.logLogout(
+                    user.getId(),
+                    user.getEmail(),
+                    "Unknown",
+                    "Unknown"
+            );
+        }
+        
         // Implementation depends on Token blacklist strategy (Redis)
         // For now, stateless JWT, client side discard
         logger.info("User logout: {}", userId);
@@ -264,19 +297,40 @@ public class UserServiceImpl implements UserInterface {
         User user = userRepository.findByUserid(request.userid)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-        if (!passwordUtils.matches(request.password, user.getPassword())) {
+        if (!passwordEncoder.matches(request.password, user.getPassword())) {
+            auditLogger.logLoginFailure(
+                    user.getId(),
+                    user.getEmail(),
+                    "Unknown",
+                    "Unknown",
+                    "密码错误"
+            );
             throw new BusinessException(ErrorCode.PASSWORD_ERROR);
         }
 
         if (!user.isAdmin()) {
+            auditLogger.logLoginFailure(
+                    user.getId(),
+                    user.getEmail(),
+                    "Unknown",
+                    "Unknown",
+                    "非管理员账号"
+            );
             throw new BusinessException(ErrorCode.NO_PERMISSION, "非管理员账号");
         }
 
         user.setLastLoginAt(LocalDateTime.now());
         userRepository.save(user);
 
-        String token = jwtUtils.generateToken(user.getId(), user.isAdmin());
-        String expireAt = jwtUtils.getExpirationDate(token).toString();
+        String token = jwtTokenProvider.generateAccessToken(user.getId(), user.isAdmin());
+        String expireAt = jwtTokenValidator.getExpirationDateFromToken(token).toString();
+
+        auditLogger.logLoginSuccess(
+                user.getId(),
+                user.getEmail(),
+                "Unknown",
+                "Unknown"
+        );
 
         return new AuthDto.LoginResponse(token, expireAt, user);
     }
@@ -293,8 +347,8 @@ public class UserServiceImpl implements UserInterface {
         // In real filter chain, this is done before controller
         // Here just simulating extraction
         try {
-            var claims = jwtUtils.validateToken(token);
-            boolean isAdmin = (boolean) claims.get("isAdmin");
+            var claims = jwtTokenValidator.validateToken(token);
+            boolean isAdmin = claims.get("isAdmin", Boolean.class);
             // Mock permissions
             return new UserProfileDto.AuthCheckResponse(isAdmin, Collections.singletonList("ALL"));
         } catch (Exception e) {
@@ -351,9 +405,9 @@ public class UserServiceImpl implements UserInterface {
      */
     private void validateAccess(String token, String targetUserId) {
         try {
-            var claims = jwtUtils.validateToken(token);
-            boolean isAdmin = (boolean) claims.get("isAdmin");
-            if (isAdmin)
+            var claims = jwtTokenValidator.validateToken(token);
+            Boolean isAdmin = claims.get("isAdmin", Boolean.class);
+            if (isAdmin != null && isAdmin)
                 return; // Admin can access anyone
 
             String requesterId = claims.getSubject(); // This is UUID

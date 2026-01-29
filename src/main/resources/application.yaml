@@ -3,11 +3,48 @@ spring:
     mongodb:
       uri: mongodb://localhost:27017/EcoGo #我现在本地部署得用localhost才行，所以就在我这个地方改成了这样
       database: EcoGo
+  
+  security:
+    # 会话管理
+    session:
+      timeout: 1800  # 30分钟（秒）
+      max-concurrent-sessions: 1
+      prevent-login: true
+    
+    # 记住我功能
+    remember-me:
+      key: ${REMEMBER_ME_KEY:ecogo-remember-me-secret-key-change-in-production}
+      token-validity-seconds: 604800  # 7天
+    
+    # 密码策略
+    password:
+      algorithm: bcrypt  # bcrypt, argon2, pbkdf2
+      min-length: 8
+      require-uppercase: true
+      require-lowercase: true
+      require-digit: true
+      require-special-char: true
+      max-history: 5  # 保留最近5个密码的历史
+      expiry-days: 90  # 密码90天后过期
+
+# JWT配置
+jwt:
+  secret: ${JWT_SECRET:ecogo-jwt-secret-key-please-change-this-in-production-environment-use-at-least-256-bits}
+  expiration: 604800000  # 7天（毫秒）
+  refresh-expiration: 2592000000  # 30天（毫秒）
+
+# 审计日志配置
+audit:
+  enabled: true
+  async: true
+  retention-days: 90  # 保留90天的审计日志
 
 logging:
   level:
     com.example.EcoGo: debug
+    com.example.EcoGo.security: debug
     org.springframework.data.mongodb: debug
+    org.springframework.security: info
   file:
     name: logs/eco-go.log
   pattern:
