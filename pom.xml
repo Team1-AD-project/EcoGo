@@ -98,7 +98,12 @@
             <version>1.18.0</version>
         </dependency>
 
-
+		<!-- Argon2 Password Encoder Support -->
+		<dependency>
+			<groupId>org.bouncycastle</groupId>
+			<artifactId>bcprov-jdk15on</artifactId>
+			<version>1.70</version>
+		</dependency>
 
 	</dependencies>
 
