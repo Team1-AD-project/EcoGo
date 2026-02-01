@@ -23,9 +23,9 @@ public class Badge {
 
     private Map<String, String> name; 
     private Map<String, String> description;
-
+    
     @Field("purchase_cost")
-    private int purchaseCost; 
+    private Integer purchaseCost; 
 
     // ✅ 核心修正：补回分类字段，用于同类互斥！
     // 例如: "RANK", "ACHIEVEMENT", "VIP"
@@ -34,7 +34,7 @@ public class Badge {
     private BadgeIcon icon;
 
     @Field("is_active")
-    private boolean isActive;
+    private Boolean isActive;
 
     @Field("created_at")
     private Date createdAt;
