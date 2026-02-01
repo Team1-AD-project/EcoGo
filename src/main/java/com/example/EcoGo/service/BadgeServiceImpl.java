@@ -109,4 +109,38 @@ public class BadgeServiceImpl implements BadgeService {
     public List<Badge> getShopList() { return badgeRepository.findByIsActive(true); }
     public List<UserBadge> getMyBadges(String userId) { return userBadgeRepository.findByUserId(userId); }
     public Badge createBadge(Badge badge) { return badgeRepository.save(badge); }
+
+@Transactional
+    public Badge updateBadge(String badgeId, Badge badgeDetails) {
+        // 1. 先查询是否存在
+        Badge existingBadge = badgeRepository.findByBadgeId(badgeId)
+                .orElseThrow(() -> new RuntimeException("徽章不存在，无法修改"));
+
+        // 2. 更新字段 (这里列出了常见字段，根据你的 Badge 实体类实际情况调整)
+        // 注意：不应该允许修改 badgeId
+        if (badgeDetails.getName() != null) existingBadge.setName(badgeDetails.getName());
+        if (badgeDetails.getDescription() != null) existingBadge.setDescription(badgeDetails.getDescription());
+        if (badgeDetails.getPurchaseCost() != null) existingBadge.setPurchaseCost(badgeDetails.getPurchaseCost());
+        if (badgeDetails.getCategory() != null) existingBadge.setCategory(badgeDetails.getCategory());
+        if (badgeDetails.getIcon() != null) existingBadge.setIcon(badgeDetails.getIcon());
+        if (badgeDetails.getIsActive() != null) existingBadge.setIsActive(badgeDetails.getIsActive());
+
+        // 3. 保存并返回
+        return badgeRepository.save(existingBadge);
+    }
+
+    /**
+     * 4. 管理员删除徽章
+     */
+    @Transactional
+    public void deleteBadge(String badgeId) {
+        // 1. 先查询是否存在
+        Badge badge = badgeRepository.findByBadgeId(badgeId)
+                .orElseThrow(() -> new RuntimeException("徽章不存在，无法删除"));
+
+        // 2. 执行删除
+        // ⚠️ 警告：物理删除会导致已拥有该徽章的用户数据异常。
+        // 如果想更安全，建议在这里改为 badge.setIsActive(false) 并 save
+        badgeRepository.delete(badge);
+    }
 }
