@@ -770,6 +770,12 @@ class MapActivity : AppCompatActivity(), OnMapReadyCallback {
         routePolyline?.remove()
         routePolyline = null
         binding.cardRouteInfo.visibility = View.GONE
+
+        // 自动获取默认驾车路线（如果起点和终点都已设置）
+        if (originLatLng != null && destinationLatLng != null) {
+            binding.chipDriving.isChecked = true
+            viewModel.fetchRouteByMode(TransportMode.DRIVING)
+        }
     }
 
     /**
