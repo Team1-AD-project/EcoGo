@@ -115,8 +115,10 @@ public class UserController {
     }
 
     @GetMapping("/api/v1/web/users/list")
-    public ResponseMessage<java.util.List<UserResponseDto>> listAllUsers() {
-        return ResponseMessage.success(userService.getAllUsers());
+    public ResponseMessage<com.example.EcoGo.dto.PageResponse<com.example.EcoGo.model.User>> listAllUsers(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return ResponseMessage.success(userService.getAllUsers(page, size));
     }
 
     @PutMapping("/api/v1/web/users/manage/{userId}")

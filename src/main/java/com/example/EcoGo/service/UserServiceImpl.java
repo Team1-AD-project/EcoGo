@@ -58,16 +58,16 @@ public class UserServiceImpl implements UserInterface {
 
         // Generate userid from email prefix (e.g., abc@test.com -> abc)
         String userid = request.email.split("@")[0];
-        // Ensure userid is unique (simple logic: if exists, append random suffix)
+
+        // Ensure userid is unique (Throw error if exists)
         if (userRepository.findByUserid(userid).isPresent()) {
-            userid = userid + "_" + UUID.randomUUID().toString().substring(0, 4);
+            throw new BusinessException(ErrorCode.USER_NAME_DUPLICATE, "用户ID已存在 (" + userid + ")");
         }
 
         User user = new User();
         user.setId(UUID.randomUUID().toString());
         user.setUserid(userid);
         user.setEmail(request.email);
-        // user.setPhone(request.phone); // Removed in this flow
         user.setPassword(passwordUtils.encode(request.password));
         user.setNickname(request.nickname);
 
@@ -283,10 +283,12 @@ public class UserServiceImpl implements UserInterface {
     }
 
     @Override
-    public java.util.List<UserResponseDto> getAllUsers() {
-        return userRepository.findAll().stream()
-                .map(u -> new UserResponseDto(u.getEmail(), u.getUserid(), u.getNickname(), u.getPhone()))
-                .collect(java.util.stream.Collectors.toList());
+    public com.example.EcoGo.dto.PageResponse<User> getAllUsers(int page, int size) {
+        // PageRequest is 0-indexed, so we subtract 1
+        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page - 1,
+                size);
+        org.springframework.data.domain.Page<User> userPage = userRepository.findAll(pageable);
+        return new com.example.EcoGo.dto.PageResponse<>(userPage.getContent(), userPage.getTotalElements(), page, size);
     }
 
     // --- Web Auth ---
