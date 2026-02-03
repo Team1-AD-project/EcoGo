@@ -6,6 +6,8 @@ import com.example.EcoGo.interfacemethods.AdvertisementInterface;
 import com.example.EcoGo.model.Advertisement;
 import com.example.EcoGo.repository.AdvertisementRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,8 +21,12 @@ public class AdvertisementImplementation implements AdvertisementInterface {
     private AdvertisementRepository advertisementRepository;
 
     @Override
-    public List<Advertisement> getAllAdvertisements() {
-        return advertisementRepository.findAll();
+    public Page<Advertisement> getAllAdvertisements(String name, Pageable pageable) {
+        if (name != null && !name.isEmpty()) {
+            return advertisementRepository.findByNameContainingIgnoreCase(name, pageable);
+        } else {
+            return advertisementRepository.findAll(pageable);
+        }
     }
 
     @Override
