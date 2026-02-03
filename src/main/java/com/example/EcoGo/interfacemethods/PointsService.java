@@ -59,9 +59,16 @@ public interface PointsService {
     List<PointsDto.PointsLogResponse> getAllPointsHistory();
 
     // --- Internal Logic (Not exposed directly as API) ---
-    void settleTrip(String userId, String tripId, double carbonAmount);
+    void settleTrip(String userId, PointsDto.SettleTripRequest request);
 
     void redeemPoints(String userId, String orderId, long points);
 
     void refundPoints(String userId, String orderId);
+
+    // --- Helper Methods for Complex Trips ---
+
+    /**
+     * Generate description string: "StartName -> EndName (Distancekm)"
+     */
+    String formatTripDescription(PointsDto.LocationInfo start, PointsDto.LocationInfo end, double totalDistance);
 }

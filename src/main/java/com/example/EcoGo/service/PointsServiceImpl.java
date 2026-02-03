@@ -29,7 +29,7 @@ public class PointsServiceImpl implements PointsService {
     public UserPointsLog adjustPoints(String userId, long points, String source, String description,
             UserPointsLog.AdminAction adminAction) {
         // 1. Fetch User (using UUID)
-        User user = userRepository.findById(userId)
+        User user = userRepository.findByUserid(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         // 2. Validate sufficient funds for deduction
@@ -54,10 +54,12 @@ public class PointsServiceImpl implements PointsService {
         }
 
         UserPointsLog log = new UserPointsLog();
-        log.setUserId(userId);
+        log.setId(java.util.UUID.randomUUID().toString()); // Use UUID for Log ID
+        log.setUserId(user.getUserid()); // Store Business UserID (e.g. "user001") instead of UUID
         log.setChangeType(changeType);
         log.setPoints(points);
         log.setSource(source);
+        log.setDescription(description);
         log.setAdminAction(adminAction);
         log.setBalanceAfter(newBalance);
         // relatedId ? left null for now, can be added to method signature if needed
@@ -68,7 +70,7 @@ public class PointsServiceImpl implements PointsService {
 
     @Override
     public PointsDto.CurrentPointsResponse getCurrentPoints(String userId) {
-        User user = userRepository.findById(userId)
+        User user = userRepository.findByUserid(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         return new PointsDto.CurrentPointsResponse(user.getUserid(), user.getCurrentPoints(), user.getTotalPoints());
     }
@@ -107,7 +109,7 @@ public class PointsServiceImpl implements PointsService {
             return new PointsDto.TripStatsResponse(totalTrips, totalPoints);
         } else {
             // User stats - Read from User.Stats Cache (Fast)
-            User user = userRepository.findById(userId)
+            User user = userRepository.findByUserid(userId)
                     .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
             User.Stats stats = user.getStats();
@@ -139,29 +141,20 @@ public class PointsServiceImpl implements PointsService {
     }
 
     @Override
-    public void settleTrip(String userId, String tripId, double carbonAmount) {
-        // For settled trips, carbon is already calculated by ML.
-        // We just convert Carbon -> Points (1g = 10pts)
-        long points = (long) (carbonAmount * 10);
+    public void settleTrip(String userId, PointsDto.SettleTripRequest request) {
+        // Logic simplified: Caller calculates points and description
+        long points = request.points;
+        String description = request.description != null ? request.description : "Trip completed: " + request.tripId;
 
-        String description = "Trip completed: " + tripId;
         // Reuse adjustPoints logic (Handles log and balance)
+        // Pass relatedId as tripId (Adding relatedId support here implicitly via
+        // adjustPoints if I modify adjustPoints to take relatedId,
+        // OR just rely on description. Wait, I added relatedId field to Log but
+        // adjustPoints doesn't take it as arg.
+        // For now, I won't change adjustPoints signature, just usage.)
         adjustPoints(userId, points, "trip", description, null);
 
-        // --- Sync to User.stats Cache ---
-        userRepository.findById(userId).ifPresent(user -> {
-            User.Stats stats = user.getStats();
-            if (stats == null) {
-                stats = new User.Stats();
-                user.setStats(stats);
-            }
-            stats.setTotalTrips(stats.getTotalTrips() + 1);
-            stats.setTotalPointsFromTrips(stats.getTotalPointsFromTrips() + points);
-            // Assuming distance is handled by TripService or we don't have it here.
-            // If needed, we would need distance param.
-
-            userRepository.save(user);
-        });
+        // User.Stats update handled by TripService.
     }
 
     @Override
@@ -223,5 +216,16 @@ public class PointsServiceImpl implements PointsService {
     public List<PointsDto.PointsLogResponse> getPointsHistory(String userId) {
         List<UserPointsLog> logs = pointsLogRepository.findByUserIdOrderByCreatedAtDesc(userId);
         return logs.stream().map(this::convertToDto).collect(Collectors.toList());
+    }
+
+    @Override
+    public String formatTripDescription(PointsDto.LocationInfo start, PointsDto.LocationInfo end,
+            double totalDistance) {
+        String startName = (start != null && start.place_name != null) ? start.place_name : "Unknown Start";
+        String endName = (end != null && end.place_name != null) ? end.place_name : "Unknown Destination";
+
+        // Format: "Start -> End (2.5km)"
+        // Using String.format for cleaner output
+        return String.format("%s -> %s (%.1fkm)", startName, endName, totalDistance);
     }
 }

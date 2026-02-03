@@ -53,4 +53,18 @@ public class PointsDto {
             this.totalPointsEarned = points;
         }
     }
+
+    // --- Complex Trip Data DTOs ---
+
+    public static class LocationInfo {
+        public String address;
+        public String place_name;
+        public String campus_zone;
+    }
+
+    public static class SettleTripRequest {
+        public long points;
+        public String tripId;
+        public String description;
+    }
 }
