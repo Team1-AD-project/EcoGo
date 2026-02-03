@@ -41,7 +41,19 @@ public class PointsServiceImpl implements PointsService {
 
         // 3. Update User
         user.setCurrentPoints(newBalance);
-        if (points > 0) {
+        // Logic Refinement:
+        // - "trip": Add to Total (Lifetime) + Current.
+        // - "badges"/"redeem" (Refunds): Only Current.
+        // - "badges" (Purchase): Subtract Current (handled by points < 0 check).
+
+        // Prevent infinite rank exploit via Buy/Refund cycles.
+        // Only valid "earning" sources increase Total Points.
+        boolean isEarningSource = "trip".equalsIgnoreCase(source)
+                || "mission".equalsIgnoreCase(source)
+                || "task".equalsIgnoreCase(source)
+                || "admin".equalsIgnoreCase(source); // Admin comps usually count
+
+        if (points > 0 && isEarningSource) {
             user.setTotalPoints(user.getTotalPoints() + points);
         }
         userRepository.save(user);
