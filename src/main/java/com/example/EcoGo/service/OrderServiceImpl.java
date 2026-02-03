@@ -10,7 +10,6 @@ import java.util.ArrayList;
 import com.example.EcoGo.repository.UserRepository;
 import com.example.EcoGo.model.User;
 
-
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -31,37 +30,35 @@ public class OrderServiceImpl implements OrderService {
     @Autowired
     private UserRepository userRepository;
 
-
-
     @Override
     public Order createOrder(Order order) {
         // 生成订单号
         if (order.getOrderNumber() == null || order.getOrderNumber().isEmpty()) {
-            String orderNumber = "ORD" + System.currentTimeMillis() + 
-                               UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+            String orderNumber = "ORD" + System.currentTimeMillis() +
+                    UUID.randomUUID().toString().substring(0, 6).toUpperCase();
             order.setOrderNumber(orderNumber);
         }
-        
+
         // 计算总金额
         if (order.getItems() != null && !order.getItems().isEmpty()) {
             double total = order.getItems().stream()
-                .mapToDouble(item -> {
-                    if (item.getSubtotal() != null) {
-                        return item.getSubtotal();
-                    } else if (item.getPrice() != null && item.getQuantity() != null) {
-                        return item.getPrice() * item.getQuantity();
-                    }
-                    return 0.0;
-                })
-                .sum();
-            
+                    .mapToDouble(item -> {
+                        if (item.getSubtotal() != null) {
+                            return item.getSubtotal();
+                        } else if (item.getPrice() != null && item.getQuantity() != null) {
+                            return item.getPrice() * item.getQuantity();
+                        }
+                        return 0.0;
+                    })
+                    .sum();
+
             order.setTotalAmount(total);
             order.setFinalAmount(total + (order.getShippingFee() != null ? order.getShippingFee() : 0.0));
         }
-        
+
         order.setCreatedAt(new Date());
         order.setUpdatedAt(new Date());
-        
+
         // 设置默认状态
         if (order.getStatus() == null || order.getStatus().isEmpty()) {
             order.setStatus("PENDING");
@@ -69,7 +66,7 @@ public class OrderServiceImpl implements OrderService {
         if (order.getPaymentStatus() == null || order.getPaymentStatus().isEmpty()) {
             order.setPaymentStatus("PENDING");
         }
-        
+
         return orderRepository.save(order);
     }
 
@@ -78,7 +75,7 @@ public class OrderServiceImpl implements OrderService {
         Optional<Order> existingOrder = orderRepository.findById(id);
         if (existingOrder.isPresent()) {
             Order updatedOrder = existingOrder.get();
-            
+
             // 只更新允许更新的字段
             if (order.getStatus() != null) {
                 updatedOrder.setStatus(order.getStatus());
@@ -114,7 +111,7 @@ public class OrderServiceImpl implements OrderService {
             if (order.getCarrier() != null) {
                 updatedOrder.setCarrier(order.getCarrier());
             }
-            
+
             updatedOrder.setUpdatedAt(new Date());
             return orderRepository.save(updatedOrder);
         } else {
@@ -183,14 +180,13 @@ public class OrderServiceImpl implements OrderService {
                     .orElseThrow(() -> new RuntimeException("User not found"));
             String mongoUserId = user.getId();
 
-
             pointsService.adjustPoints(
                     mongoUserId,
                     -totalPointsCost,
                     "REDEEM",
                     "Redeem order by userid=" + order.getUserId() + ", points=" + totalPointsCost,
-                    null
-            );
+                    null,
+                    null);
 
         } catch (Exception e) {
             // 任何异常：回滚已扣的库存
@@ -203,7 +199,7 @@ public class OrderServiceImpl implements OrderService {
             }
             // 原异常继续抛出，让 controller 返回 400
             throw (e instanceof RuntimeException) ? (RuntimeException) e : new RuntimeException(e.getMessage());
-        }   
+        }
 
         // 4) 建订单（兑换订单：金额 0、支付状态已支付、记录 pointsUsed）
         order.setIsRedemptionOrder(true);
@@ -227,8 +223,8 @@ public class OrderServiceImpl implements OrderService {
         // 订单号生成沿用 createOrder 的规则（为了保持一致性）
         if (order.getOrderNumber() == null || order.getOrderNumber().isEmpty()) {
             String orderNumber = "ORD" + System.currentTimeMillis()
-                + UUID.randomUUID().toString().substring(0, 6).toUpperCase();
-        order.setOrderNumber(orderNumber);
+                    + UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+            order.setOrderNumber(orderNumber);
         }
 
         order.setCreatedAt(new Date());
@@ -236,7 +232,6 @@ public class OrderServiceImpl implements OrderService {
 
         return orderRepository.save(order);
     }
-
 
     @Override
     public void deleteOrder(String id) {

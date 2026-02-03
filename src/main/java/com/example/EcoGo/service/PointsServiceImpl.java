@@ -26,7 +26,7 @@ public class PointsServiceImpl implements PointsService {
     private UserPointsLogRepository pointsLogRepository;
 
     @Override
-    public UserPointsLog adjustPoints(String userId, long points, String source, String description,
+    public UserPointsLog adjustPoints(String userId, long points, String source, String description, String relatedId,
             UserPointsLog.AdminAction adminAction) {
         // 1. Fetch User (using UUID)
         User user = userRepository.findByUserid(userId)
@@ -60,10 +60,9 @@ public class PointsServiceImpl implements PointsService {
         log.setPoints(points);
         log.setSource(source);
         log.setDescription(description);
+        log.setRelatedId(relatedId);
         log.setAdminAction(adminAction);
         log.setBalanceAfter(newBalance);
-        // relatedId ? left null for now, can be added to method signature if needed
-        // later
 
         return pointsLogRepository.save(log);
     }
@@ -141,27 +140,22 @@ public class PointsServiceImpl implements PointsService {
     }
 
     @Override
-    public void settleTrip(String userId, PointsDto.SettleTripRequest request) {
+    public void settle(String userId, PointsDto.SettleResult result) {
         // Logic simplified: Caller calculates points and description
-        long points = request.points;
-        String description = request.description != null ? request.description : "Trip completed: " + request.tripId;
+        long points = result.points;
+        String source = result.source != null ? result.source : "general";
+        String description = result.description != null ? result.description : "Points adjustment";
+        String relatedId = result.relatedId;
 
         // Reuse adjustPoints logic (Handles log and balance)
-        // Pass relatedId as tripId (Adding relatedId support here implicitly via
-        // adjustPoints if I modify adjustPoints to take relatedId,
-        // OR just rely on description. Wait, I added relatedId field to Log but
-        // adjustPoints doesn't take it as arg.
-        // For now, I won't change adjustPoints signature, just usage.)
-        adjustPoints(userId, points, "trip", description, null);
-
-        // User.Stats update handled by TripService.
+        adjustPoints(userId, points, source, description, relatedId, null);
     }
 
     @Override
     public void redeemPoints(String userId, String orderId, long points) {
         String description = "Redemption for order: " + orderId;
         // Points should be negative for deduction
-        adjustPoints(userId, -Math.abs(points), "redeem", description, null);
+        adjustPoints(userId, -Math.abs(points), "redeem", description, orderId, null);
     }
 
     @Override
@@ -219,13 +213,18 @@ public class PointsServiceImpl implements PointsService {
     }
 
     @Override
-    public String formatTripDescription(PointsDto.LocationInfo start, PointsDto.LocationInfo end,
-            double totalDistance) {
-        String startName = (start != null && start.place_name != null) ? start.place_name : "Unknown Start";
-        String endName = (end != null && end.place_name != null) ? end.place_name : "Unknown Destination";
+    public String formatTripDescription(String startPlace, String endPlace, double totalDistance) {
+        String startName = (startPlace != null && !startPlace.isEmpty()) ? startPlace : "Unknown Start";
+        String endName = (endPlace != null && !endPlace.isEmpty()) ? endPlace : "Unknown Destination";
 
         // Format: "Start -> End (2.5km)"
         // Using String.format for cleaner output
         return String.format("%s -> %s (%.1fkm)", startName, endName, totalDistance);
+    }
+
+    @Override
+    public String formatBadgeDescription(String badgeName) {
+        // Format: "Purchased Badge: Eco Pioneer"
+        return "Purchased Badge: " + (badgeName != null ? badgeName : "Unknown Badge");
     }
 }

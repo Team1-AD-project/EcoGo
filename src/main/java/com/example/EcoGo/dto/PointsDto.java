@@ -56,15 +56,11 @@ public class PointsDto {
 
     // --- Complex Trip Data DTOs ---
 
-    public static class LocationInfo {
-        public String address;
-        public String place_name;
-        public String campus_zone;
-    }
-
-    public static class SettleTripRequest {
+    // Generic Request for Settling Points (Trips, Badges, etc.)
+    public static class SettleResult {
         public long points;
-        public String tripId;
+        public String source; // trip, badge, mission, etc.
         public String description;
+        public String relatedId; // TripID, BadgeID, OrderID
     }
 }
