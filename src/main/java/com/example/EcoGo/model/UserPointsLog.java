@@ -24,6 +24,8 @@ public class UserPointsLog {
 
     private String source; // trip, task, redeem, admin
 
+    private String description; // Brief description of the transaction
+
     private String relatedId; // Trip ID / Order ID (UUID)
 
     private AdminAction adminAction; // Only if source=admin
@@ -87,6 +89,14 @@ public class UserPointsLog {
 
     public void setSource(String source) {
         this.source = source;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
     }
 
     public String getRelatedId() {

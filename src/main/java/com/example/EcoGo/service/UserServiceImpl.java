@@ -173,7 +173,7 @@ public class UserServiceImpl implements UserInterface {
 
         userRepository.save(user);
 
-        String token = jwtUtils.generateToken(user.getId(), user.isAdmin());
+        String token = jwtUtils.generateToken(user.getUserid(), user.isAdmin());
         String expireAt = jwtUtils.getExpirationDate(token).toString();
 
         return new AuthDto.LoginResponse(token, expireAt, user);
@@ -316,7 +316,7 @@ public class UserServiceImpl implements UserInterface {
         user.setLastLoginAt(LocalDateTime.now());
         userRepository.save(user);
 
-        String token = jwtUtils.generateToken(user.getId(), user.isAdmin());
+        String token = jwtUtils.generateToken(user.getUserid(), user.isAdmin());
         String expireAt = jwtUtils.getExpirationDate(token).toString();
 
         return new AuthDto.LoginResponse(token, expireAt, user);
@@ -437,14 +437,13 @@ public class UserServiceImpl implements UserInterface {
             if (isAdmin)
                 return; // Admin can access anyone
 
-            String requesterId = claims.getSubject(); // This is UUID
+            String requesterId = claims.getSubject(); // This is now Business ID (userid)
 
-            // Mobile endpoints pass "userid" (Business ID), but we need to verify against
-            // UUID
+            // Mobile endpoints pass "userid" (Business ID), need to verify
             User targetUser = userRepository.findByUserid(targetUserId)
                     .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
-            if (!targetUser.getId().equals(requesterId)) {
+            if (!targetUser.getUserid().equals(requesterId)) {
                 throw new BusinessException(ErrorCode.NO_PERMISSION,
                         "You do not have permission to operate on this account");
             }
