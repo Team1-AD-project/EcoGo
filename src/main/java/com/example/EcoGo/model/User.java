@@ -4,6 +4,7 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDateTime;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 @Document(collection = "users")
 public class User {
@@ -16,7 +17,9 @@ public class User {
     private String password;
     private String nickname;
     private String avatar;
+    @JsonProperty("isAdmin")
     private boolean isAdmin;
+    @JsonProperty("isDeactivated")
     private boolean isDeactivated;
 
     private Vip vip;

@@ -34,7 +34,7 @@ public interface UserInterface {
     // Web Admin
     UserProfileDto.AuthCheckResponse authenticateUser(String token);
 
-    java.util.List<UserResponseDto> getAllUsers();
+    com.example.EcoGo.dto.PageResponse<com.example.EcoGo.model.User> getAllUsers(int page, int size);
 
     UserProfileDto.UpdateProfileResponse manageUser(String userId, UserProfileDto.AdminManageUserRequest request);
 
