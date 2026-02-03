@@ -140,6 +140,11 @@ public class UserController {
         return ResponseMessage.success(userService.getUserDetailAdmin(userId));
     }
 
+    @GetMapping("/api/v1/web/users/detail/{userid}")
+    public ResponseMessage<com.example.EcoGo.model.User> getUserDetailByUserid(@PathVariable String userid) {
+        return ResponseMessage.success(userService.getUserDetailByUserid(userid));
+    }
+
     @PutMapping("/api/v1/web/users/profile/{userId}")
     public ResponseMessage<UserProfileDto.UpdateProfileResponse> updateUserProfile(@PathVariable String userId,
             @RequestBody UserProfileDto.UpdateProfileRequest request) {

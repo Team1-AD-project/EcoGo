@@ -287,7 +287,7 @@ public class UserServiceImpl implements UserInterface {
         // PageRequest is 0-indexed, so we subtract 1
         org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(page - 1,
                 size);
-        org.springframework.data.domain.Page<User> userPage = userRepository.findAll(pageable);
+        org.springframework.data.domain.Page<User> userPage = userRepository.findByIsAdminFalse(pageable);
         return new com.example.EcoGo.dto.PageResponse<>(userPage.getContent(), userPage.getTotalElements(), page, size);
     }
 
@@ -384,6 +384,12 @@ public class UserServiceImpl implements UserInterface {
         userRepository.save(user);
 
         return new UserProfileDto.UpdateProfileResponse(user.getId(), user.getUpdatedAt());
+    }
+
+    @Override
+    public User getUserDetailByUserid(String userid) {
+        return userRepository.findByUserid(userid)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
     }
 
     /**
