@@ -156,7 +156,7 @@ public class PointsController {
         // 2. Call Service (Pass Business ID directly)
         String description = request.description != null ? request.description : request.reason;
 
-        pointsService.adjustPoints(userid, request.points, request.source, description, adminAction);
+        pointsService.adjustPoints(userid, request.points, request.source, description, null, adminAction);
 
         return ResponseMessage.success("Points adjusted successfully");
     }
