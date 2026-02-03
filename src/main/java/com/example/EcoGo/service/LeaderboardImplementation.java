@@ -1,9 +1,13 @@
 package com.example.EcoGo.service;
 
+import com.example.EcoGo.dto.LeaderboardStatsDto;
 import com.example.EcoGo.interfacemethods.LeaderboardInterface;
 import com.example.EcoGo.model.Ranking;
 import com.example.EcoGo.repository.RankingRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,26 +22,48 @@ public class LeaderboardImplementation implements LeaderboardInterface {
     private RankingRepository rankingRepository;
 
     @Autowired
-    private MongoTemplate mongoTemplate; // Injected for distinct queries
+    private MongoTemplate mongoTemplate;
 
-    /**
-     * Gets all ranking entries for a specific period, sorted by rank.
-     */
     @Override
-    public List<Ranking> getRankingsByPeriod(String period) {
-        return rankingRepository.findByPeriodOrderByRankAsc(period);
+    public Page<Ranking> getRankingsByPeriod(String period, String name, Pageable pageable) {
+        if (name != null && !name.isEmpty()) {
+            return rankingRepository.findByPeriodAndNicknameContainingIgnoreCaseOrderByRankAsc(period, name, pageable);
+        } else {
+            return rankingRepository.findByPeriodOrderByRankAsc(period, pageable);
+        }
     }
 
-    /**
-     * Gets a list of all available, unique period strings from the rankings collection.
-     */
+    @Override
+    public LeaderboardStatsDto getRankingsAndStatsByPeriod(String period, String name, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        boolean hasSearchName = name != null && !name.isEmpty();
+
+        // 1. Get the paginated results
+        Page<Ranking> rankingsPage = hasSearchName
+                ? rankingRepository.findByPeriodAndNicknameContainingIgnoreCaseOrderByRankAsc(period, name, pageable)
+                : rankingRepository.findByPeriodOrderByRankAsc(period, pageable);
+
+        // 2. Get all rankings for the period (without pagination) to calculate stats
+        List<Ranking> allRankingsForPeriod = rankingRepository.findByPeriod(period);
+
+        long totalCarbonSaved = 0;
+        long totalVipUsers = 0;
+
+        for (Ranking ranking : allRankingsForPeriod) {
+            totalCarbonSaved += ranking.getCarbonSaved();
+            if (ranking.isVip()) {
+                totalVipUsers++;
+            }
+        }
+
+        return new LeaderboardStatsDto(rankingsPage, totalCarbonSaved, totalVipUsers);
+    }
+
     @Override
     public List<String> getAvailablePeriods() {
-        // Use MongoTemplate to perform a distinct query on the 'period' field
-        List<String> periods = mongoTemplate.query(Ranking.class)
+        return mongoTemplate.query(Ranking.class)
                 .distinct("period")
                 .as(String.class)
                 .all();
-        return periods;
     }
 }
