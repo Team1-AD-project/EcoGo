@@ -9,6 +9,7 @@ import com.ecogo.databinding.ItemFacultySwipeCardBinding
 
 class FacultySwipeAdapter(
     private val faculties: List<FacultyData>,
+    private val viewPager: androidx.viewpager2.widget.ViewPager2,
     private val onFacultySelected: (FacultyData) -> Unit
 ) : RecyclerView.Adapter<FacultySwipeAdapter.SwipeCardViewHolder>() {
 
@@ -23,13 +24,7 @@ class FacultySwipeAdapter(
             // Faculty color
             binding.viewFacultyColor.setBackgroundColor(Color.parseColor(faculty.color))
             
-            // Set card background color with tint
-            val colorWithAlpha = Color.parseColor(faculty.color)
-            val red = Color.red(colorWithAlpha)
-            val green = Color.green(colorWithAlpha)
-            val blue = Color.blue(colorWithAlpha)
-            val lightColor = Color.argb(30, red, green, blue) // 10% opacity
-            binding.cardFaculty.setCardBackgroundColor(lightColor)
+            // 卡片背景保持白色（已在XML中设置）
             
             // Mascot with outfit
             binding.mascotPreview.outfit = faculty.outfit
@@ -50,6 +45,22 @@ class FacultySwipeAdapter(
             // Click to select
             binding.cardFaculty.setOnClickListener {
                 onFacultySelected(faculty)
+            }
+            
+            // 左右切换按钮
+            binding.btnPrev.setOnClickListener {
+                val currentPosition = viewPager.currentItem
+                if (currentPosition > 0) {
+                    viewPager.setCurrentItem(currentPosition - 1, true)
+                }
+            }
+            
+            binding.btnNext.setOnClickListener {
+                val currentPosition = viewPager.currentItem
+                val itemCount = viewPager.adapter?.itemCount ?: 0
+                if (currentPosition < itemCount - 1) {
+                    viewPager.setCurrentItem(currentPosition + 1, true)
+                }
             }
             
             // Add scale animation on touch

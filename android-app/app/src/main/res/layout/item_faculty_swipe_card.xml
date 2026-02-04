@@ -5,14 +5,27 @@
     android:layout_height="match_parent"
     android:padding="16dp">
 
-    <com.google.android.material.card.MaterialCardView
-        android:id="@+id/card_faculty"
+    <!-- 正方形卡片容器 -->
+    <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_gravity="center"
-        app:cardCornerRadius="32dp"
-        app:cardElevation="8dp"
-        app:strokeWidth="0dp">
+        android:layout_gravity="center">
+
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_faculty"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            app:layout_constraintWidth_percent="0.85"
+            app:layout_constraintDimensionRatio="1:1"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:cardCornerRadius="32dp"
+            app:cardElevation="8dp"
+            app:strokeWidth="2dp"
+            app:strokeColor="@color/border"
+            app:cardBackgroundColor="@android:color/white">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -127,5 +140,37 @@
         </LinearLayout>
 
     </com.google.android.material.card.MaterialCardView>
+
+        <!-- 左切换按钮（Mini尺寸，卡片外侧） -->
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/btn_prev"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="12dp"
+            android:src="@drawable/ic_chevron_left"
+            app:fabSize="mini"
+            app:elevation="4dp"
+            app:backgroundTint="@color/primary"
+            app:tint="@android:color/white"
+            app:layout_constraintTop_toTopOf="@id/card_faculty"
+            app:layout_constraintBottom_toBottomOf="@id/card_faculty"
+            app:layout_constraintEnd_toStartOf="@id/card_faculty" />
+
+        <!-- 右切换按钮（Mini尺寸，卡片外侧） -->
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/btn_next"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:src="@drawable/ic_chevron_right"
+            app:fabSize="mini"
+            app:elevation="4dp"
+            app:backgroundTint="@color/primary"
+            app:tint="@android:color/white"
+            app:layout_constraintTop_toTopOf="@id/card_faculty"
+            app:layout_constraintBottom_toBottomOf="@id/card_faculty"
+            app:layout_constraintStart_toEndOf="@id/card_faculty" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
 
 </FrameLayout>

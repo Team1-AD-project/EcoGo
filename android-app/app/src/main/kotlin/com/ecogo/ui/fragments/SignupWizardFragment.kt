@@ -199,8 +199,11 @@ class SignupWizardFragment : Fragment() {
         binding.layoutInterestsGoals.root.visibility = View.GONE
         binding.layoutMascotReveal.visibility = View.GONE
         
-        // 设置ViewPager2适配器
-        val adapter = FacultySwipeAdapter(MockData.FACULTY_DATA) { faculty ->
+        // 设置ViewPager2适配器（传入viewPager引用用于左右按钮）
+        val adapter = FacultySwipeAdapter(
+            MockData.FACULTY_DATA,
+            binding.viewpagerFaculties
+        ) { faculty ->
             // 选择后跳转到交通偏好
             selectedFaculty = faculty
             android.util.Log.d("DEBUG_SIGNUP", "Faculty selected: ${faculty.name}")

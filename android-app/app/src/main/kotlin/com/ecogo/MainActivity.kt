@@ -95,32 +95,12 @@ class MainActivity : AppCompatActivity() {
     }
     
     private fun checkAndShowOnboarding() {
-        try {
-            val prefs = getSharedPreferences("EcoGoPrefs", Context.MODE_PRIVATE)
-            val isFirstLogin = prefs.getBoolean("is_first_login", false)
-            
-            if (isFirstLogin) {
-                Log.d("DEBUG_MAIN", "First login detected, will show onboarding after home loads")
-                // 注意：这里不直接导航，因为还在登录流程中
-                // 当用户完成注册并到达home时，可以在HomeFragment中检测并导航到onboarding
-                // 或者在navigation listener中处理
-                
-                navController.addOnDestinationChangedListener { _, destination, _ ->
-                    if (destination.id == R.id.homeFragment && isFirstLogin) {
-                        // 到达首页后显示引导
-                        prefs.edit().putBoolean("is_first_login", false).apply()
-                        Log.d("DEBUG_MAIN", "Navigating to onboarding from home")
-                        try {
-                            navController.navigate(R.id.onboardingFragment)
-                        } catch (e: Exception) {
-                            Log.e("DEBUG_MAIN", "Failed to navigate to onboarding: ${e.message}", e)
-                        }
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            Log.e("DEBUG_MAIN", "checkAndShowOnboarding failed: ${e.message}", e)
-        }
+        // 注意：首次登录的引导页导航已由LoginFragment处理
+        // LoginFragment会检查is_first_login标志，并在登录成功后导航到onboarding或home
+        // OnboardingFragment会在完成时清除is_first_login标志并导航到home
+        // 这里不再需要额外的逻辑，以避免导航冲突
+        
+        Log.d("DEBUG_MAIN", "checkAndShowOnboarding: Onboarding navigation handled by LoginFragment")
     }
     
     private fun toggleHomeVersion() {

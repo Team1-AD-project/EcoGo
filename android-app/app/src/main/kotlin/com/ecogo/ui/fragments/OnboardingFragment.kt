@@ -1,5 +1,6 @@
 package com.ecogo.ui.fragments
 
+import android.content.Context
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -58,12 +59,17 @@ class OnboardingFragment : Fragment() {
             if (currentItem < 4) {  // 改为4
                 binding.viewPager.setCurrentItem(currentItem + 1, true)
             } else {
-                Log.d("DEBUG_ONBOARDING", "Next button clicked - attempting navigate to home")
+                Log.d("DEBUG_ONBOARDING", "Next button clicked - completing onboarding")
+                
+                // 清除首次登录标志
+                val prefs = requireContext().getSharedPreferences("EcoGoPrefs", Context.MODE_PRIVATE)
+                prefs.edit().putBoolean("is_first_login", false).apply()
+                Log.d("DEBUG_ONBOARDING", "is_first_login flag cleared")
+                
                 Toast.makeText(requireContext(), "🔄 正在跳转到主页...", Toast.LENGTH_SHORT).show()
                 try {
                     findNavController().navigate(R.id.action_onboarding_to_home)
                     Log.d("DEBUG_ONBOARDING", "Navigate to home completed successfully")
-                    Toast.makeText(requireContext(), "✅ 导航命令已执行", Toast.LENGTH_SHORT).show()
                 } catch (e: Exception) {
                     Log.e("DEBUG_ONBOARDING", "Navigation to home FAILED: ${e.message}", e)
                     Toast.makeText(requireContext(), "❌ 导航错误: ${e.message}", Toast.LENGTH_LONG).show()
@@ -72,7 +78,13 @@ class OnboardingFragment : Fragment() {
         }
         
         binding.textSkip.setOnClickListener {
-            Log.d("DEBUG_ONBOARDING", "Skip button clicked - attempting navigate to home")
+            Log.d("DEBUG_ONBOARDING", "Skip button clicked - completing onboarding")
+            
+            // 清除首次登录标志
+            val prefs = requireContext().getSharedPreferences("EcoGoPrefs", Context.MODE_PRIVATE)
+            prefs.edit().putBoolean("is_first_login", false).apply()
+            Log.d("DEBUG_ONBOARDING", "is_first_login flag cleared (skipped)")
+            
             try {
                 findNavController().navigate(R.id.action_onboarding_to_home)
                 Log.d("DEBUG_ONBOARDING", "Navigate to home completed from skip")
