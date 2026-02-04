@@ -54,7 +54,7 @@ public class BadgeServiceImpl implements BadgeService {
         String badgeName = badge.getName() != null ? badge.getName().getOrDefault("en", "Unknown Badge") : "Unknown Badge";
         PointsDto.SettleResult settleResult = new PointsDto.SettleResult();
         settleResult.points = -cost;
-        settleResult.source = "badge_purchase";
+        settleResult.source = "badge";
         settleResult.description = pointsService.formatBadgeDescription(badgeName);
         settleResult.relatedId = badgeId;
         pointsService.settle(userId, settleResult);
