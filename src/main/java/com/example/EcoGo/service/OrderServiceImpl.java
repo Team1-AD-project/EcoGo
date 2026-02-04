@@ -175,18 +175,28 @@ public class OrderServiceImpl implements OrderService {
 
             }
 
-            // 3) 再扣积分（只调用，不改实现）
-            User user = userRepository.findByUserid(order.getUserId())
-                    .orElseThrow(() -> new RuntimeException("User not found"));
-            String mongoUserId = user.getId();
+            // 3) 再扣积分
+            String userId = order.getUserId();
+
+            List<String> purchasedNames = new ArrayList<>();
+            for (Order.OrderItem item : order.getItems()) {
+                int qty = (item.getQuantity() == null || item.getQuantity() <= 0) ? 1 : item.getQuantity();
+                String name = (item.getGoodsName() != null && !item.getGoodsName().isBlank())
+                    ? item.getGoodsName()
+                    : item.getGoodsId();
+                purchasedNames.add(name + " x" + qty);
+            }
+            String description = "Purchased " + String.join(", ", purchasedNames);
 
             pointsService.adjustPoints(
-                    mongoUserId,
-                    -totalPointsCost,
-                    "REDEEM",
-                    "Redeem order by userid=" + order.getUserId() + ", points=" + totalPointsCost,
-                    null,
-                    null);
+                userId,
+                -totalPointsCost,
+                "store",
+                description,
+                null,   
+                null    
+            );
+
 
         } catch (Exception e) {
             // 任何异常：回滚已扣的库存
