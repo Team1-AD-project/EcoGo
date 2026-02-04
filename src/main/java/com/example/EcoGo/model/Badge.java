@@ -27,8 +27,6 @@ public class Badge {
     @Field("purchase_cost")
     private int purchaseCost; 
 
-    // ✅ 核心修正：补回分类字段，用于同类互斥！
-    // 例如: "RANK", "ACHIEVEMENT", "VIP"
     private String category; 
 
     private BadgeIcon icon;
