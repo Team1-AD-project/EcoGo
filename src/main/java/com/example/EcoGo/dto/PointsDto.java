@@ -10,7 +10,6 @@ public class PointsDto {
         public String source; // admin, trip, etc
         public String description;
         // For admin action details
-        public String operator_id;
         public String reason;
     }
 
@@ -53,5 +52,15 @@ public class PointsDto {
             this.totalTrips = trips;
             this.totalPointsEarned = points;
         }
+    }
+
+    // --- Complex Trip Data DTOs ---
+
+    // Generic Request for Settling Points (Trips, Badges, etc.)
+    public static class SettleResult {
+        public long points;
+        public String source; // trip, badge, mission, etc.
+        public String description;
+        public String relatedId; // TripID, BadgeID, OrderID
     }
 }
