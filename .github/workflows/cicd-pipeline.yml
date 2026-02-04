@@ -217,6 +217,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Check SonarQube Configuration
+        run: |
+          chmod +x .github/scripts/check-sonar-config.sh
+          ./.github/scripts/check-sonar-config.sh || true
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
       - name: Set up JDK 17
         uses: actions/setup-java@v3
         with:
@@ -227,12 +235,25 @@ jobs:
       - name: SonarQube Scan
         if: env.SONAR_TOKEN != ''
         run: |
-          mvn clean verify sonar:sonar \
-            -Dsonar.projectKey=ecogo \
-            -Dsonar.sources=src/main \
-            -Dsonar.tests=src/test \
-            -Dsonar.host.url=${{ env.SONAR_HOST_URL }} \
-            -Dsonar.login=${{ env.SONAR_TOKEN }}
+          # Detect if using SonarCloud and add organization parameter
+          if [[ "${{ env.SONAR_HOST_URL }}" == *"sonarcloud.io"* ]]; then
+            echo "Using SonarCloud - adding organization parameter"
+            mvn clean verify sonar:sonar \
+              -Dsonar.projectKey=ecogo \
+              -Dsonar.organization=team1-ad-project \
+              -Dsonar.sources=src/main \
+              -Dsonar.tests=src/test \
+              -Dsonar.host.url=${{ env.SONAR_HOST_URL }} \
+              -Dsonar.login=${{ env.SONAR_TOKEN }}
+          else
+            echo "Using self-hosted SonarQube"
+            mvn clean verify sonar:sonar \
+              -Dsonar.projectKey=ecogo \
+              -Dsonar.sources=src/main \
+              -Dsonar.tests=src/test \
+              -Dsonar.host.url=${{ env.SONAR_HOST_URL }} \
+              -Dsonar.login=${{ env.SONAR_TOKEN }}
+          fi
         continue-on-error: true
 
       - name: SonarQube Not Configured
