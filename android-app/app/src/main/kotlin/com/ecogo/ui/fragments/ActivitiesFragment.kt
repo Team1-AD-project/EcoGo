@@ -9,7 +9,6 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
-import com.ecogo.data.MockData
 import com.ecogo.databinding.FragmentActivitiesBinding
 import com.ecogo.ui.adapters.ActivityAdapter
 import com.ecogo.repository.EcoGoRepository
@@ -47,7 +46,7 @@ class ActivitiesFragment : Fragment() {
 
     private fun loadActivities() {
         viewLifecycleOwner.lifecycleScope.launch {
-            val activities = repository.getAllActivities().getOrElse { MockData.ACTIVITIES }
+            val activities = repository.getAllActivities().getOrNull() ?: emptyList()
             binding.recyclerActivities.adapter = ActivityAdapter(activities) { activity ->
                 // 导航到活动详情页
                 val action = ActivitiesFragmentDirections

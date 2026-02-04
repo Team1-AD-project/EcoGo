@@ -308,7 +308,24 @@ class EcoGoRepository {
                 Result.failure(e)
             }
         }
-    
+
+    /**
+     * 获取所有活动 (移动端)
+     * 调用 /api/v1/mobile/activities
+     */
+    suspend fun getAllMobileActivities(): Result<List<Activity>> = withContext(Dispatchers.IO) {
+        try {
+            val response = api.getAllMobileActivities()
+            if (response.success && response.data != null) {
+                Result.success(response.data)
+            } else {
+                Result.failure(Exception(response.message))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     // ==================== 排行榜相关 ====================
 
     private val mockLeaderboardPeriods = listOf("Week 4, 2026", "Week 3, 2026", "Week 2, 2026")

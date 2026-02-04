@@ -79,7 +79,14 @@ interface ApiService {
      */
     @GET("api/v1/activities")
     suspend fun getAllActivities(): ApiResponse<List<Activity>>
-    
+
+    /**
+     * 获取所有活动 (移动端)
+     * GET /api/v1/mobile/activities
+     */
+    @GET("api/v1/mobile/activities")
+    suspend fun getAllMobileActivities(): ApiResponse<List<Activity>>
+
     /**
      * 根据 ID 获取活动
      * GET /api/v1/activities/{id}

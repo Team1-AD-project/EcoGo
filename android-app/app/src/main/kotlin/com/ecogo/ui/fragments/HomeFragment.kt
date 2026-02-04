@@ -183,8 +183,8 @@ class HomeFragment : Fragment() {
     }
     
     private suspend fun loadActivities() {
-        val activitiesResult = repository.getAllActivities().getOrElse { MockData.ACTIVITIES }
-        binding.recyclerHighlights.adapter = HighlightAdapter(activitiesResult.take(3)) { activity ->
+        val activities = repository.getAllActivities().getOrNull() ?: emptyList()
+        binding.recyclerHighlights.adapter = HighlightAdapter(activities.take(5)) { activity ->
             findNavController().navigate(com.ecogo.R.id.activitiesFragment)
         }
     }

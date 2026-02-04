@@ -5,11 +5,13 @@ package com.ecogo.api
  * 对应后端的 ResponseMessage<T>
  */
 data class ApiResponse<T>(
-    val code: Int,
-    val message: String,
-    val data: T?,
-    val success: Boolean = code == 200
-)
+    val code: Int = 0,
+    val message: String = "",
+    val data: T? = null
+) {
+    // 计算属性，根据 code 判断是否成功
+    val success: Boolean get() = code == 200
+}
 
 /**
  * 空响应（没有数据体）
