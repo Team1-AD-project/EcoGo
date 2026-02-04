@@ -4,15 +4,18 @@ import com.example.EcoGo.interfacemethods.BadgeService;
 import com.example.EcoGo.model.Badge;
 import com.example.EcoGo.model.User;
 import com.example.EcoGo.model.UserBadge;
+import com.example.EcoGo.model.UserPointsLog;
 import com.example.EcoGo.repository.BadgeRepository;
 import com.example.EcoGo.repository.UserBadgeRepository;
-import com.example.EcoGo.repository.UserRepository; 
+import com.example.EcoGo.repository.UserRepository;
+import com.example.EcoGo.repository.UserPointsLogRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class BadgeServiceImpl implements BadgeService {
@@ -20,6 +23,7 @@ public class BadgeServiceImpl implements BadgeService {
     @Autowired private BadgeRepository badgeRepository;
     @Autowired private UserBadgeRepository userBadgeRepository;
     @Autowired private UserRepository userRepository;
+    @Autowired private UserPointsLogRepository userPointsLogRepository;
 
     /**
      * 1. 购买徽章
@@ -32,9 +36,9 @@ public class BadgeServiceImpl implements BadgeService {
         
         Badge badge = badgeRepository.findByBadgeId(badgeId)
                 .orElseThrow(() -> new RuntimeException("商品不存在"));
-        
-        int cost = badge.getPurchaseCost();
-        if (cost <= 0) throw new RuntimeException("该徽章不可购买");
+
+        Integer cost = badge.getPurchaseCost();
+        if (cost == null || cost <= 0) throw new RuntimeException("该徽章不可购买");
 
         User user = userRepository.findByUserid(userId)
         .orElseThrow(() -> new RuntimeException("用户不存在"));
@@ -43,8 +47,19 @@ public class BadgeServiceImpl implements BadgeService {
             throw new RuntimeException("积分不足");
         }
 
-        user.setTotalPoints(user.getTotalPoints() - cost);
+        long newBalance = user.getTotalPoints() - cost;
+        user.setTotalPoints(newBalance);
         userRepository.save(user);
+
+        // 记录积分消费日志
+        UserPointsLog log = new UserPointsLog();
+        log.setUserId(user.getId()); // 使用 UUID
+        log.setChangeType("deduct");
+        log.setPoints(-cost); // 负数表示扣除
+        log.setSource("badge_purchase");
+        log.setRelatedId(badgeId); // 关联购买的 badge ID
+        log.setBalanceAfter(newBalance);
+        userPointsLogRepository.save(log);
 
         UserBadge newBadge = new UserBadge();
         newBadge.setUserId(userId);
@@ -52,7 +67,7 @@ public class BadgeServiceImpl implements BadgeService {
         newBadge.setUnlockedAt(new Date());
         newBadge.setDisplay(false); // 默认不佩戴
         newBadge.setCreatedAt(new Date());
-        
+
         return userBadgeRepository.save(newBadge);
     }
 
@@ -110,37 +125,58 @@ public class BadgeServiceImpl implements BadgeService {
     public List<UserBadge> getMyBadges(String userId) { return userBadgeRepository.findByUserId(userId); }
     public Badge createBadge(Badge badge) { return badgeRepository.save(badge); }
 
-@Transactional
-    public Badge updateBadge(String badgeId, Badge badgeDetails) {
-        // 1. 先查询是否存在
+    /**
+     * 3. 获取 Badge 购买统计
+     * 返回每个 badge 的购买次数，供管理员查看
+     */
+    public List<Map<String, Object>> getBadgePurchaseStats() {
+        return userBadgeRepository.countPurchasesByBadge();
+    }
+
+    /**
+     * 4. 修改徽章（管理员用）
+     */
+    @Transactional
+    public Badge updateBadge(String badgeId, Badge updatedBadge) {
         Badge existingBadge = badgeRepository.findByBadgeId(badgeId)
-                .orElseThrow(() -> new RuntimeException("徽章不存在，无法修改"));
+                .orElseThrow(() -> new RuntimeException("徽章不存在"));
 
-        // 2. 更新字段 (这里列出了常见字段，根据你的 Badge 实体类实际情况调整)
-        // 注意：不应该允许修改 badgeId
-        if (badgeDetails.getName() != null) existingBadge.setName(badgeDetails.getName());
-        if (badgeDetails.getDescription() != null) existingBadge.setDescription(badgeDetails.getDescription());
-        if (badgeDetails.getPurchaseCost() != null) existingBadge.setPurchaseCost(badgeDetails.getPurchaseCost());
-        if (badgeDetails.getCategory() != null) existingBadge.setCategory(badgeDetails.getCategory());
-        if (badgeDetails.getIcon() != null) existingBadge.setIcon(badgeDetails.getIcon());
-        if (badgeDetails.getIsActive() != null) existingBadge.setIsActive(badgeDetails.getIsActive());
+        // 更新字段（只更新非空字段）
+        if (updatedBadge.getName() != null) {
+            existingBadge.setName(updatedBadge.getName());
+        }
+        if (updatedBadge.getDescription() != null) {
+            existingBadge.setDescription(updatedBadge.getDescription());
+        }
+        if (updatedBadge.getPurchaseCost() != null) {
+            existingBadge.setPurchaseCost(updatedBadge.getPurchaseCost());
+        }
+        if (updatedBadge.getCategory() != null) {
+            existingBadge.setCategory(updatedBadge.getCategory());
+        }
+        if (updatedBadge.getIcon() != null) {
+            existingBadge.setIcon(updatedBadge.getIcon());
+        }
+        if (updatedBadge.getIsActive() != null) {
+            existingBadge.setIsActive(updatedBadge.getIsActive());
+        }
 
-        // 3. 保存并返回
         return badgeRepository.save(existingBadge);
     }
 
     /**
-     * 4. 管理员删除徽章
+     * 5. 删除徽章（管理员用）
      */
     @Transactional
     public void deleteBadge(String badgeId) {
-        // 1. 先查询是否存在
         Badge badge = badgeRepository.findByBadgeId(badgeId)
-                .orElseThrow(() -> new RuntimeException("徽章不存在，无法删除"));
+                .orElseThrow(() -> new RuntimeException("徽章不存在"));
 
-        // 2. 执行删除
-        // ⚠️ 警告：物理删除会导致已拥有该徽章的用户数据异常。
-        // 如果想更安全，建议在这里改为 badge.setIsActive(false) 并 save
+        // 删除徽章本身
         badgeRepository.delete(badge);
+
+        // 可选：同时删除所有用户持有的该徽章
+        // List<UserBadge> userBadges = userBadgeRepository.findByBadgeId(badgeId);
+        // userBadgeRepository.deleteAll(userBadges);
     }
 }
