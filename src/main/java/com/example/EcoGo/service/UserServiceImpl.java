@@ -52,14 +52,18 @@ public class UserServiceImpl implements UserInterface {
             throw new BusinessException(ErrorCode.PARAM_ERROR, "仅支持NUS邮箱注册 (@u.nus.edu)");
         }
 
+        if (!request.password.equals(request.repassword)) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "两次输入的密码不一致");
+        }
+
         if (userRepository.findByEmail(request.email).isPresent()) {
             throw new BusinessException(ErrorCode.USER_NAME_DUPLICATE, "邮箱已存在");
         }
 
-        // Generate userid from email prefix (e.g., abc@test.com -> abc)
-        String userid = request.email.split("@")[0];
+        // Use userid provided by user
+        String userid = request.userid;
 
-        // Ensure userid is unique (Throw error if exists)
+        // Ensure userid is unique
         if (userRepository.findByUserid(userid).isPresent()) {
             throw new BusinessException(ErrorCode.USER_NAME_DUPLICATE, "用户ID已存在 (" + userid + ")");
         }
