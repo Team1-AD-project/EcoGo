@@ -8,6 +8,7 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.viewpager2.adapter.FragmentStateAdapter
 import com.ecogo.databinding.FragmentVoucherBinding
+import com.ecogo.manager.PointsManager
 import com.ecogo.repository.EcoGoRepository
 import com.google.android.material.tabs.TabLayoutMediator
 import kotlinx.coroutines.launch
@@ -35,15 +36,16 @@ class VoucherFragment : Fragment() {
     }
     
     private fun setupUserPoints() {
-        // 从Repository加载用户积分
+        // 监听积分变化
         viewLifecycleOwner.lifecycleScope.launch {
-            try {
-                // TODO: Fetch user points from API
-                val userPoints = 1250 // Sample data
-                binding.textUserPoints.text = String.format("%,d", userPoints)
-            } catch (e: Exception) {
-                binding.textUserPoints.text = "0"
+            PointsManager.currentPoints.collect { points ->
+                binding.textUserPoints.text = String.format("%,d", points)
             }
+        }
+        
+        // 刷新积分
+        viewLifecycleOwner.lifecycleScope.launch {
+            PointsManager.refreshPoints()
         }
     }
     

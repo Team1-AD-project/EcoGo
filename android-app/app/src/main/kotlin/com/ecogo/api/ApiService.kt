@@ -22,6 +22,7 @@ import com.ecogo.data.Voucher
 import com.ecogo.data.VoucherRedeemRequest
 import com.ecogo.data.WalkingRoute
 import com.ecogo.data.Weather
+import com.google.gson.annotations.SerializedName
 import retrofit2.http.*
 
 /**
@@ -29,6 +30,46 @@ import retrofit2.http.*
  * 定义所有后端 API 端点（完全匹配后端 Controller）
  */
 interface ApiService {
+    
+    // ==================== 用户认证相关 ====================
+    
+    /**
+     * 用户注册
+     * POST /api/v1/mobile/users/register
+     */
+    @POST("api/v1/mobile/users/register")
+    suspend fun register(@Body request: RegisterRequest): ApiResponse<RegisterResponse>
+    
+    /**
+     * 用户登录
+     * POST /api/v1/mobile/users/login
+     */
+    @POST("api/v1/mobile/users/login")
+    suspend fun login(@Body request: LoginRequest): ApiResponse<LoginResponse>
+    
+    /**
+     * 用户登出
+     * POST /api/v1/mobile/users/logout
+     */
+    @POST("api/v1/mobile/users/logout")
+    suspend fun logout(@Header("Authorization") token: String): ApiResponse<Unit>
+    
+    /**
+     * 获取用户资料
+     * GET /api/v1/mobile/users/profile
+     */
+    @GET("api/v1/mobile/users/profile")
+    suspend fun getProfile(@Header("Authorization") token: String): ApiResponse<UserProfile>
+    
+    /**
+     * 更新用户资料
+     * PUT /api/v1/mobile/users/profile
+     */
+    @PUT("api/v1/mobile/users/profile")
+    suspend fun updateProfile(
+        @Header("Authorization") token: String,
+        @Body profile: UserProfile
+    ): ApiResponse<UserProfile>
     
     // ==================== 活动相关 ====================
     
@@ -471,6 +512,39 @@ interface ApiService {
      */
     @POST("api/v1/shop/confirm-payment")
     suspend fun confirmPayment(@Body request: ConfirmPaymentRequest): ApiResponse<OrderDto>
+    
+    // ==================== 积分相关 ====================
+    
+    /**
+     * 获取当前积分
+     * GET /api/v1/mobile/points/current
+     */
+    @GET("api/v1/mobile/points/current")
+    suspend fun getCurrentPoints(@Header("Authorization") token: String): ApiResponse<CurrentPointsResponse>
+    
+    /**
+     * 获取积分历史
+     * GET /api/v1/mobile/points/history
+     */
+    @GET("api/v1/mobile/points/history")
+    suspend fun getPointsHistory(@Header("Authorization") token: String): ApiResponse<List<PointsLog>>
+    
+    /**
+     * 计算积分
+     * GET /api/v1/mobile/points/calculate
+     */
+    @GET("api/v1/mobile/points/calculate")
+    suspend fun calculatePoints(
+        @Query("mode") mode: String,
+        @Query("distance") distance: Double
+    ): ApiResponse<Long>
+    
+    /**
+     * 获取出行统计
+     * GET /api/v1/mobile/points/stats/trip
+     */
+    @GET("api/v1/mobile/points/stats/trip")
+    suspend fun getTripStats(@Header("Authorization") token: String): ApiResponse<TripStats>
 }
 
 // ==================== DTO 数据类 ====================
@@ -644,4 +718,100 @@ data class ConfirmPaymentRequest(
     val userId: String,
     val productId: String,
     val paymentIntentId: String
+)
+
+// ==================== 用户认证相关 DTO ====================
+
+/**
+ * 用户注册请求
+ */
+data class RegisterRequest(
+    @SerializedName("nickname")
+    val username: String,
+    val email: String,
+    val nusnetId: String,
+    val password: String,
+    val faculty: String?,
+    val transportPreferences: List<String>?,
+    val interests: List<String>?,
+    val weeklyGoal: Int?
+)
+
+/**
+ * 用户注册响应
+ */
+data class RegisterResponse(
+    val id: String,
+    val userid: String,
+    val nickname: String,
+    @SerializedName("created_at")
+    val createdAt: String
+)
+
+/**
+ * 用户登录请求
+ */
+data class LoginRequest(
+    val nusnetId: String,
+    val password: String
+)
+
+/**
+ * 用户登录响应
+ */
+data class LoginResponse(
+    val userId: String,
+    val username: String,
+    val email: String,
+    val token: String,
+    val faculty: String?
+)
+
+/**
+ * 用户资料
+ */
+data class UserProfile(
+    val userId: String,
+    val username: String,
+    val email: String,
+    val nusnetId: String,
+    val faculty: String?,
+    val transportPreferences: List<String>?,
+    val interests: List<String>?,
+    val weeklyGoal: Int?,
+    val currentPoints: Int
+)
+
+// ==================== 积分相关 DTO ====================
+
+/**
+ * 当前积分响应
+ */
+data class CurrentPointsResponse(
+    val userId: String,
+    val currentPoints: Int,
+    val totalEarned: Int,
+    val totalSpent: Int
+)
+
+/**
+ * 积分记录
+ */
+data class PointsLog(
+    val id: String,
+    val userId: String,
+    val points: Int,
+    val type: String, // EARN, SPEND
+    val reason: String,
+    val createdAt: String
+)
+
+/**
+ * 出行统计
+ */
+data class TripStats(
+    val totalTrips: Int,
+    val totalDistance: Double,
+    val totalCo2Saved: Double,
+    val totalPointsEarned: Int
 )

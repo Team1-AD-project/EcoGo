@@ -13,13 +13,17 @@ import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.viewpager2.widget.ViewPager2
 import com.ecogo.R
+import com.ecogo.auth.TokenManager
 import com.ecogo.data.FacultyData
 import com.ecogo.data.MockData
 import com.ecogo.databinding.FragmentSignupWizardBinding
+import com.ecogo.repository.EcoGoRepository
 import com.ecogo.ui.adapters.FacultySwipeAdapter
+import kotlinx.coroutines.launch
 import kotlin.math.abs
 
 /**
@@ -91,6 +95,17 @@ class SignupWizardFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         try {
             Log.d("DEBUG_SIGNUP", "SignupWizardFragment onViewCreated")
+
+            // 恢复保存的状态
+            savedInstanceState?.let {
+                username = it.getString("username", "")
+                email = it.getString("email", "")
+                nusnetId = it.getString("nusnetId", "")
+                password = it.getString("password", "")
+                currentStep = it.getInt("currentStep", 0)
+                Log.d("DEBUG_SIGNUP", "Restored state - username: $username, step: $currentStep")
+            }
+
             showPersonalInfo()
             Log.d("DEBUG_SIGNUP", "SignupWizardFragment personal info shown")
         } catch (e: Exception) {
@@ -101,7 +116,7 @@ class SignupWizardFragment : Fragment() {
     
     private fun showPersonalInfo() {
         currentStep = 0
-        
+
         // 显示个人信息界面
         binding.layoutPersonalInfo.visibility = View.VISIBLE
         binding.layoutFacultySelection.visibility = View.GONE
@@ -109,7 +124,22 @@ class SignupWizardFragment : Fragment() {
         binding.layoutCommonLocations.root.visibility = View.GONE
         binding.layoutInterestsGoals.root.visibility = View.GONE
         binding.layoutMascotReveal.visibility = View.GONE
-        
+
+        // 如果有保存的数据，恢复输入框的文本
+        if (username.isNotEmpty()) {
+            binding.inputUsername.setText(username)
+        }
+        if (email.isNotEmpty()) {
+            binding.inputEmail.setText(email)
+        }
+        if (nusnetId.isNotEmpty()) {
+            binding.inputNusnet.setText(nusnetId)
+        }
+        if (password.isNotEmpty()) {
+            binding.inputPassword.setText(password)
+            binding.inputConfirmPassword.setText(password)
+        }
+
         // 输入验证
         val textWatcher = object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -118,13 +148,13 @@ class SignupWizardFragment : Fragment() {
                 validatePersonalInfo()
             }
         }
-        
+
         binding.inputUsername.addTextChangedListener(textWatcher)
         binding.inputEmail.addTextChangedListener(textWatcher)
         binding.inputNusnet.addTextChangedListener(textWatcher)
         binding.inputPassword.addTextChangedListener(textWatcher)
         binding.inputConfirmPassword.addTextChangedListener(textWatcher)
-        
+
         // Next 按钮
         binding.btnNextToFaculty.isEnabled = false
         binding.btnNextToFaculty.alpha = 0.5f
@@ -133,6 +163,7 @@ class SignupWizardFragment : Fragment() {
             email = binding.inputEmail.text.toString()
             nusnetId = binding.inputNusnet.text.toString()
             password = binding.inputPassword.text.toString()
+            Log.d("DEBUG_SIGNUP", "Next clicked - username: '$username', email: '$email'")
             showFacultySelection()
         }
     }
@@ -496,6 +527,25 @@ class SignupWizardFragment : Fragment() {
     }
     
     private fun completeSignup(faculty: FacultyData) {
+        // 验证必填字段
+        if (username.isBlank()) {
+            Toast.makeText(requireContext(), "昵称不能为空", Toast.LENGTH_SHORT).show()
+            Log.e("DEBUG_SIGNUP", "Username is empty")
+            return
+        }
+        if (email.isBlank()) {
+            Toast.makeText(requireContext(), "邮箱不能为空", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (nusnetId.isBlank()) {
+            Toast.makeText(requireContext(), "NUSNET ID 不能为空", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (password.isBlank()) {
+            Toast.makeText(requireContext(), "密码不能为空", Toast.LENGTH_SHORT).show()
+            return
+        }
+
         Log.d("DEBUG_SIGNUP", "=== Complete Registration Data ===")
         Log.d("DEBUG_SIGNUP", "Username: $username")
         Log.d("DEBUG_SIGNUP", "Email: $email")
@@ -510,57 +560,66 @@ class SignupWizardFragment : Fragment() {
         Log.d("DEBUG_SIGNUP", "Interests: ${interests.joinToString(", ")}")
         Log.d("DEBUG_SIGNUP", "Weekly Goal: $weeklyGoal")
         Log.d("DEBUG_SIGNUP", "Notifications: challenges=$notifyChallenges, reminders=$notifyReminders, friends=$notifyFriends")
-        
-        // 保存注册数据
+
+        // 使用 API 保存注册数据（异步，导航由 API 回调处理）
         saveRegistrationData()
-        
-        // 标记为首次登录（用于触发功能引导）
-        saveFirstLoginStatus(true)
-        
-        Toast.makeText(requireContext(), "Registration successful! Please login with your credentials 🎉", Toast.LENGTH_LONG).show()
-        
-        // 延迟一下，让Toast消息能显示，然后跳转到登录页面
-        binding.root.postDelayed({
-            try {
-                Log.d("DEBUG_SIGNUP", "Attempting navigate to login")
-                // 跳转到登录页面，清除back stack
-                findNavController().navigate(R.id.loginFragment)
-                Log.d("DEBUG_SIGNUP", "Navigate to login completed")
-            } catch (e: Exception) {
-                Log.e("DEBUG_SIGNUP", "Navigation failed: ${e.message}", e)
-                Toast.makeText(requireContext(), "❌ 导航失败: ${e.message}", Toast.LENGTH_LONG).show()
-            }
-        }, 1000)
     }
     
     private fun saveRegistrationData() {
-        val prefs = requireContext().getSharedPreferences("EcoGoPrefs", Context.MODE_PRIVATE)
-        prefs.edit().apply {
-            putString("username", username)
-            putString("email", email)
-            putString("nusnet_id", nusnetId)
-            putString("password", password)  // 注意：实际应用中应该加密存储
-            putString("faculty", selectedFaculty?.name)
-            putStringSet("transport_prefs", transportPrefs)
-            putString("dormitory", dormitory)
-            putString("teaching_building", teachingBuilding)
-            putString("study_spot", studySpot)
-            putStringSet("other_locations", otherLocations)
-            putStringSet("interests", interests)
-            putInt("weekly_goal", weeklyGoal)
-            putBoolean("notify_challenges", notifyChallenges)
-            putBoolean("notify_reminders", notifyReminders)
-            putBoolean("notify_friends", notifyFriends)
-            putBoolean("is_registered", true)  // 标记已注册
-            apply()
+        // 使用 API 进行注册
+        lifecycleScope.launch {
+            Toast.makeText(requireContext(), "正在注册...", Toast.LENGTH_SHORT).show()
+
+            val repository = EcoGoRepository()
+            val result = repository.register(
+                username = username,
+                email = email,
+                nusnetId = nusnetId,
+                password = password,
+                faculty = selectedFaculty?.id,
+                transportPreferences = transportPrefs.toList(),
+                interests = interests.toList(),
+                weeklyGoal = weeklyGoal
+            )
+
+            result.onSuccess { registerResponse ->
+                Log.d("DEBUG_SIGNUP", "Registration API successful: userid=${registerResponse.userid}")
+                Log.d("DEBUG_SIGNUP", "RegisterResponse: $registerResponse")
+
+                // 保存用户信息（暂时使用注册时输入的 email 和 username）
+                TokenManager.saveToken(
+                    "", // 后端不返回 token，需要通过单独的登录接口获取
+                    registerResponse.userid,
+                    registerResponse.nickname
+                )
+
+                // 标记首次登录（用于特定用户）
+                val prefs = requireContext().getSharedPreferences("EcoGoPrefs", Context.MODE_PRIVATE)
+                prefs.edit()
+                    .putBoolean("is_first_login_${registerResponse.userid}", true)
+                    .apply()
+
+                Toast.makeText(requireContext(), "注册成功！请使用注册的昵称和密码登录", Toast.LENGTH_SHORT).show()
+
+                // 弹出返回栈返回到登录页面
+                try {
+                    findNavController().popBackStack()
+                    Log.d("DEBUG_SIGNUP", "Navigated back to login successfully")
+                } catch (e: Exception) {
+                    Log.e("DEBUG_SIGNUP", "Navigation failed: ${e.message}", e)
+                    Toast.makeText(requireContext(), "注册成功，请返回登录页面", Toast.LENGTH_LONG).show()
+                }
+            }
+
+            result.onFailure { error ->
+                Log.e("DEBUG_SIGNUP", "Registration API failed: ${error.message}", error)
+                Toast.makeText(
+                    requireContext(),
+                    "注册失败: ${error.message}",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
         }
-        Log.d("DEBUG_SIGNUP", "Registration data saved to SharedPreferences")
-    }
-    
-    private fun saveFirstLoginStatus(isFirstLogin: Boolean) {
-        val prefs = requireContext().getSharedPreferences("EcoGoPrefs", Context.MODE_PRIVATE)
-        prefs.edit().putBoolean("is_first_login", isFirstLogin).apply()
-        Log.d("DEBUG_SIGNUP", "First login status set to: $isFirstLogin")
     }
     
     private fun getItemName(itemId: String): String {
@@ -580,12 +639,23 @@ class SignupWizardFragment : Fragment() {
         }
     }
     
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        // 保存当前填写的数据
+        outState.putString("username", username)
+        outState.putString("email", email)
+        outState.putString("nusnetId", nusnetId)
+        outState.putString("password", password)
+        outState.putInt("currentStep", currentStep)
+        Log.d("DEBUG_SIGNUP", "Saved state - username: $username")
+    }
+
     override fun onDestroyView() {
         // 清理动画
         buttonAnimator?.cancel()
         mascotScaleAnimator?.cancel()
         mascotRotateAnimator?.cancel()
-        
+
         super.onDestroyView()
         _binding = null
     }

@@ -1,6 +1,8 @@
 package com.ecogo.repository
 
+import android.util.Log
 import com.ecogo.api.*
+import com.ecogo.auth.TokenManager
 import com.ecogo.data.Activity
 import com.ecogo.data.BusRoute
 import com.ecogo.data.CarbonFootprint
@@ -36,6 +38,208 @@ import kotlinx.coroutines.withContext
 class EcoGoRepository {
     
     private val api = RetrofitClient.apiService
+    
+    // ==================== 用户认证相关 ====================
+    
+    /**
+     * 用户注册
+     */
+    suspend fun register(
+        username: String,
+        email: String,
+        nusnetId: String,
+        password: String,
+        faculty: String?,
+        transportPreferences: List<String>?,
+        interests: List<String>?,
+        weeklyGoal: Int?
+    ): Result<RegisterResponse> = withContext(Dispatchers.IO) {
+        try {
+            Log.d("DEBUG_API", "Register called with username: '$username' (length: ${username.length})")
+            Log.d("DEBUG_API", "Register called with email: '$email'")
+            Log.d("DEBUG_API", "Register called with nusnetId: '$nusnetId'")
+            Log.d("DEBUG_API", "Register called with password length: ${password.length}")
+
+            val request = RegisterRequest(
+                username, email, nusnetId, password,
+                faculty, transportPreferences, interests, weeklyGoal
+            )
+            Log.d("DEBUG_API", "Request created: $request")
+            val response = api.register(request)
+            Log.d("DEBUG_API", "API Response: success=${response.success}, message=${response.message}, data=${response.data}, code=${response.code}")
+
+            // 检查 HTTP 状态码是否在 2xx 范围内，并且 data 不为空
+            if (response.code in 200..299 && response.data != null) {
+                Log.d("DEBUG_API", "Register successful, userid=${response.data.userid}")
+                Result.success(response.data)
+            } else {
+                val errorMsg = response.message ?: "注册失败"
+                Log.e("DEBUG_API", "Register failed: code=${response.code}, data=${response.data}, message=$errorMsg")
+                Result.failure(Exception(errorMsg))
+            }
+        } catch (e: Exception) {
+            Log.e("DEBUG_API", "Register failed with exception", e)
+            Result.failure(e)
+        }
+    }
+    
+    /**
+     * 用户登录
+     */
+    suspend fun login(nusnetId: String, password: String): Result<LoginResponse> =
+        withContext(Dispatchers.IO) {
+            try {
+                val request = LoginRequest(nusnetId, password)
+                val response = api.login(request)
+                if (response.success && response.data != null) {
+                    Result.success(response.data)
+                } else {
+                    Result.failure(Exception(response.message ?: "登录失败"))
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+    
+    /**
+     * 获取用户资料
+     */
+    suspend fun getProfile(): Result<UserProfile> = withContext(Dispatchers.IO) {
+        try {
+            val token = TokenManager.getAuthHeader()
+            if (token == null) {
+                return@withContext Result.failure(Exception("未登录"))
+            }
+            val response = api.getProfile(token)
+            if (response.success && response.data != null) {
+                Result.success(response.data)
+            } else {
+                Result.failure(Exception(response.message ?: "获取用户资料失败"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    /**
+     * 更新用户资料
+     */
+    suspend fun updateProfile(profile: UserProfile): Result<UserProfile> = withContext(Dispatchers.IO) {
+        try {
+            val token = TokenManager.getAuthHeader()
+            if (token == null) {
+                return@withContext Result.failure(Exception("未登录"))
+            }
+            val response = api.updateProfile(token, profile)
+            if (response.success && response.data != null) {
+                Result.success(response.data)
+            } else {
+                Result.failure(Exception(response.message ?: "更新用户资料失败"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    /**
+     * 用户登出
+     */
+    suspend fun logout(): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val token = TokenManager.getAuthHeader()
+            if (token == null) {
+                return@withContext Result.failure(Exception("未登录"))
+            }
+            val response = api.logout(token)
+            if (response.success) {
+                TokenManager.clearToken()
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception(response.message ?: "登出失败"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    // ==================== 积分相关 ====================
+    
+    /**
+     * 获取当前积分
+     */
+    suspend fun getCurrentPoints(): Result<CurrentPointsResponse> = withContext(Dispatchers.IO) {
+        try {
+            val token = TokenManager.getAuthHeader()
+            if (token == null) {
+                return@withContext Result.failure(Exception("未登录"))
+            }
+            val response = api.getCurrentPoints(token)
+            if (response.success && response.data != null) {
+                Result.success(response.data)
+            } else {
+                Result.failure(Exception(response.message ?: "获取积分失败"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    /**
+     * 获取积分历史
+     */
+    suspend fun getPointsHistory(): Result<List<PointsLog>> = withContext(Dispatchers.IO) {
+        try {
+            val token = TokenManager.getAuthHeader()
+            if (token == null) {
+                return@withContext Result.failure(Exception("未登录"))
+            }
+            val response = api.getPointsHistory(token)
+            if (response.success && response.data != null) {
+                Result.success(response.data)
+            } else {
+                Result.failure(Exception(response.message ?: "获取积分历史失败"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+    
+    /**
+     * 计算积分
+     */
+    suspend fun calculatePoints(mode: String, distance: Double): Result<Long> = 
+        withContext(Dispatchers.IO) {
+            try {
+                val response = api.calculatePoints(mode, distance)
+                if (response.success && response.data != null) {
+                    Result.success(response.data)
+                } else {
+                    Result.failure(Exception(response.message ?: "计算积分失败"))
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+    
+    /**
+     * 获取出行统计
+     */
+    suspend fun getTripStats(): Result<TripStats> = withContext(Dispatchers.IO) {
+        try {
+            val token = TokenManager.getAuthHeader()
+            if (token == null) {
+                return@withContext Result.failure(Exception("未登录"))
+            }
+            val response = api.getTripStats(token)
+            if (response.success && response.data != null) {
+                Result.success(response.data)
+            } else {
+                Result.failure(Exception(response.message ?: "获取出行统计失败"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
     
     // ==================== 活动相关 ====================
     
@@ -480,14 +684,18 @@ class EcoGoRepository {
     suspend fun checkIn(userId: String): Result<CheckInResponse> =
         withContext(Dispatchers.IO) {
             try {
-                // 模拟API调用，实际应调用真实API
-                val response = CheckInResponse(
-                    success = true,
-                    pointsEarned = 10,
-                    consecutiveDays = MockData.CHECK_IN_STATUS.consecutiveDays + 1,
-                    message = "签到成功！"
-                )
-                Result.success(response)
+                val response = api.performCheckIn(userId)
+                if (response.success && response.data != null) {
+                    val checkInResponse = CheckInResponse(
+                        success = true,
+                        pointsEarned = response.data["points"] as? Int ?: 10,
+                        consecutiveDays = response.data["consecutiveDays"] as? Int ?: 1,
+                        message = response.data["message"] as? String ?: "签到成功！"
+                    )
+                    Result.success(checkInResponse)
+                } else {
+                    Result.failure(Exception(response.message ?: "签到失败"))
+                }
             } catch (e: Exception) {
                 Result.failure(e)
             }
@@ -499,7 +707,19 @@ class EcoGoRepository {
     suspend fun getCheckInStatus(userId: String): Result<CheckInStatus> =
         withContext(Dispatchers.IO) {
             try {
-                Result.success(MockData.CHECK_IN_STATUS)
+                val response = api.getCheckInStatus(userId)
+                if (response.success && response.data != null) {
+                    val status = CheckInStatus(
+                        userId = userId,
+                        consecutiveDays = response.data["consecutiveDays"] as? Int ?: 0,
+                        totalCheckIns = response.data["totalCheckIns"] as? Int ?: 0,
+                        lastCheckInDate = response.data["lastCheckInDate"] as? String ?: "",
+                        pointsEarned = response.data["pointsEarned"] as? Int ?: 0
+                    )
+                    Result.success(status)
+                } else {
+                    Result.failure(Exception(response.message ?: "获取签到状态失败"))
+                }
             } catch (e: Exception) {
                 Result.failure(e)
             }
@@ -511,7 +731,12 @@ class EcoGoRepository {
     suspend fun getCheckInHistory(userId: String): Result<List<CheckIn>> =
         withContext(Dispatchers.IO) {
             try {
-                Result.success(MockData.CHECK_IN_HISTORY)
+                val response = api.getCheckInHistory(userId)
+                if (response.success && response.data != null) {
+                    Result.success(response.data)
+                } else {
+                    Result.failure(Exception(response.message ?: "获取签到历史失败"))
+                }
             } catch (e: Exception) {
                 Result.failure(e)
             }
@@ -523,7 +748,29 @@ class EcoGoRepository {
     suspend fun getDailyGoal(userId: String): Result<DailyGoal> =
         withContext(Dispatchers.IO) {
             try {
-                Result.success(MockData.DAILY_GOAL)
+                val response = api.getDailyGoal(userId)
+                if (response.success && response.data != null) {
+                    Result.success(response.data)
+                } else {
+                    Result.failure(Exception(response.message ?: "获取每日目标失败"))
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+    
+    /**
+     * 更新每日目标
+     */
+    suspend fun updateDailyGoal(userId: String, updates: Map<String, Any>): Result<DailyGoal> =
+        withContext(Dispatchers.IO) {
+            try {
+                val response = api.updateDailyGoal(userId, updates)
+                if (response.success && response.data != null) {
+                    Result.success(response.data)
+                } else {
+                    Result.failure(Exception(response.message ?: "更新每日目标失败"))
+                }
             } catch (e: Exception) {
                 Result.failure(e)
             }
@@ -535,7 +782,12 @@ class EcoGoRepository {
     suspend fun getWeather(location: String = "NUS"): Result<Weather> =
         withContext(Dispatchers.IO) {
             try {
-                Result.success(MockData.WEATHER)
+                val response = api.getWeather(location)
+                if (response.success && response.data != null) {
+                    Result.success(response.data)
+                } else {
+                    Result.failure(Exception(response.message ?: "获取天气失败"))
+                }
             } catch (e: Exception) {
                 Result.failure(e)
             }
@@ -547,7 +799,29 @@ class EcoGoRepository {
     suspend fun getNotifications(userId: String): Result<List<Notification>> =
         withContext(Dispatchers.IO) {
             try {
-                Result.success(MockData.NOTIFICATIONS.filter { !it.isRead })
+                val response = api.getNotifications(userId)
+                if (response.success && response.data != null) {
+                    Result.success(response.data)
+                } else {
+                    Result.failure(Exception(response.message ?: "获取通知失败"))
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+    
+    /**
+     * 获取未读通知
+     */
+    suspend fun getUnreadNotifications(userId: String): Result<List<Notification>> =
+        withContext(Dispatchers.IO) {
+            try {
+                val response = api.getUnreadNotifications(userId)
+                if (response.success && response.data != null) {
+                    Result.success(response.data)
+                } else {
+                    Result.failure(Exception(response.message ?: "获取未读通知失败"))
+                }
             } catch (e: Exception) {
                 Result.failure(e)
             }
@@ -556,10 +830,32 @@ class EcoGoRepository {
     /**
      * 标记通知为已读
      */
-    suspend fun markNotificationAsRead(notificationId: String): Result<Boolean> =
+    suspend fun markNotificationAsRead(notificationId: String): Result<Notification> =
         withContext(Dispatchers.IO) {
             try {
-                Result.success(true)
+                val response = api.markNotificationAsRead(notificationId)
+                if (response.success && response.data != null) {
+                    Result.success(response.data)
+                } else {
+                    Result.failure(Exception(response.message ?: "标记已读失败"))
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+    
+    /**
+     * 全部标记为已读
+     */
+    suspend fun markAllNotificationsAsRead(userId: String): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            try {
+                val response = api.markAllNotificationsAsRead(userId)
+                if (response.success) {
+                    Result.success(Unit)
+                } else {
+                    Result.failure(Exception(response.message ?: "全部标记已读失败"))
+                }
             } catch (e: Exception) {
                 Result.failure(e)
             }
@@ -571,7 +867,34 @@ class EcoGoRepository {
     suspend fun getCarbonFootprint(userId: String, period: String = "monthly"): Result<CarbonFootprint> =
         withContext(Dispatchers.IO) {
             try {
-                Result.success(MockData.CARBON_FOOTPRINT)
+                val response = api.getCarbonFootprint(userId, period)
+                if (response.success && response.data != null) {
+                    Result.success(response.data)
+                } else {
+                    Result.failure(Exception(response.message ?: "获取碳足迹失败"))
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+    
+    /**
+     * 记录出行
+     */
+    suspend fun recordTrip(userId: String, tripType: String, distance: Double): Result<CarbonFootprint> =
+        withContext(Dispatchers.IO) {
+            try {
+                val request = mapOf(
+                    "userId" to userId,
+                    "tripType" to tripType,
+                    "distance" to distance
+                )
+                val response = api.recordTrip(request)
+                if (response.success && response.data != null) {
+                    Result.success(response.data)
+                } else {
+                    Result.failure(Exception(response.message ?: "记录出行失败"))
+                }
             } catch (e: Exception) {
                 Result.failure(e)
             }
@@ -583,7 +906,12 @@ class EcoGoRepository {
     suspend fun getFriends(userId: String): Result<List<Friend>> =
         withContext(Dispatchers.IO) {
             try {
-                Result.success(MockData.FRIENDS)
+                val response = api.getFriends(userId)
+                if (response.success && response.data != null) {
+                    Result.success(response.data)
+                } else {
+                    Result.failure(Exception(response.message ?: "获取好友列表失败"))
+                }
             } catch (e: Exception) {
                 Result.failure(e)
             }
@@ -595,7 +923,82 @@ class EcoGoRepository {
     suspend fun getFriendActivities(userId: String): Result<List<FriendActivity>> =
         withContext(Dispatchers.IO) {
             try {
-                Result.success(MockData.FRIEND_ACTIVITIES)
+                val response = api.getFriendActivities(userId)
+                if (response.success && response.data != null) {
+                    Result.success(response.data)
+                } else {
+                    Result.failure(Exception(response.message ?: "获取好友动态失败"))
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+    
+    /**
+     * 添加好友
+     */
+    suspend fun addFriend(userId: String, friendId: String): Result<Friend> =
+        withContext(Dispatchers.IO) {
+            try {
+                val request = mapOf("userId" to userId, "friendId" to friendId)
+                val response = api.addFriend(request)
+                if (response.success && response.data != null) {
+                    Result.success(response.data)
+                } else {
+                    Result.failure(Exception(response.message ?: "添加好友失败"))
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+    
+    /**
+     * 删除好友
+     */
+    suspend fun removeFriend(userId: String, friendId: String): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            try {
+                val response = api.removeFriend(userId, friendId)
+                if (response.success) {
+                    Result.success(Unit)
+                } else {
+                    Result.failure(Exception(response.message ?: "删除好友失败"))
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+    
+    /**
+     * 获取好友请求
+     */
+    suspend fun getFriendRequests(userId: String): Result<List<Friend>> =
+        withContext(Dispatchers.IO) {
+            try {
+                val response = api.getFriendRequests(userId)
+                if (response.success && response.data != null) {
+                    Result.success(response.data)
+                } else {
+                    Result.failure(Exception(response.message ?: "获取好友请求失败"))
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+    
+    /**
+     * 接受好友请求
+     */
+    suspend fun acceptFriendRequest(userId: String, friendId: String): Result<Friend> =
+        withContext(Dispatchers.IO) {
+            try {
+                val request = mapOf("userId" to userId, "friendId" to friendId)
+                val response = api.acceptFriendRequest(request)
+                if (response.success && response.data != null) {
+                    Result.success(response.data)
+                } else {
+                    Result.failure(Exception(response.message ?: "接受好友请求失败"))
+                }
             } catch (e: Exception) {
                 Result.failure(e)
             }
