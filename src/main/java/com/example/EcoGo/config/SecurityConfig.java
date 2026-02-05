@@ -49,6 +49,10 @@ public class SecurityConfig {
                                                 .requestMatchers(HttpMethod.DELETE, "/api/v1/goods/{id}").hasRole("ADMIN")
                                                 .requestMatchers(HttpMethod.PUT, "/api/v1/goods/batch-stock").hasRole("ADMIN")
                                                 .requestMatchers(HttpMethod.GET, "/api/v1/goods/categories").hasRole("ADMIN")
+                                                .requestMatchers(HttpMethod.GET,    "/api/v1/goods/admin/vouchers").hasRole("ADMIN")
+                                                .requestMatchers(HttpMethod.POST,   "/api/v1/goods/admin/vouchers").hasRole("ADMIN")
+                                                .requestMatchers(HttpMethod.PUT,    "/api/v1/goods/admin/vouchers/**").hasRole("ADMIN")
+                                                .requestMatchers(HttpMethod.DELETE, "/api/v1/goods/admin/vouchers/**").hasRole("ADMIN")
 
 
                                                 // Secured Endpoints
