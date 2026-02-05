@@ -29,7 +29,8 @@ public class GoodsController {
             @RequestParam(required = false, defaultValue = "20") int size,
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) Boolean isForRedemption
+            @RequestParam(required = false) Boolean isForRedemption,
+            @RequestParam(required = false, defaultValue = "false") Boolean isVipActive
     ) {
 
         List<Goods> goodsList = goodsService.getAllGoods();
@@ -37,6 +38,14 @@ public class GoodsController {
         goodsList = goodsList.stream()
                 .filter(g -> g.getType() == null || !g.getType().trim().equalsIgnoreCase("voucher"))
                 .collect(Collectors.toList());
+
+        // ✅ VIP 过滤：非 VIP 只能看到 vipLevelRequired=0（或字段缺失）
+        if (Boolean.FALSE.equals(isVipActive)) {
+            goodsList = goodsList.stream()
+                    .filter(g -> g.getVipLevelRequired() == null || g.getVipLevelRequired() == 0)
+                    .collect(Collectors.toList());
+        }       
+
 
         // 筛选逻辑
         if (category != null && !category.isEmpty()) {
@@ -276,7 +285,9 @@ public class GoodsController {
 }
 
     @GetMapping("/coupons")
-    public ResponseMessage<List<Goods>> getVoucherMarketplace() {
+    public ResponseMessage<List<Goods>> getVoucherMarketplace(
+        @RequestParam(required = false, defaultValue = "false") Boolean isVipActive
+    ) {
         try {
             List<Goods> goodsList = goodsService.getAllGoods();
 
@@ -286,7 +297,76 @@ public class GoodsController {
                     .filter(g -> Boolean.TRUE.equals(g.getIsForRedemption()))
                     .toList();
 
+            // ✅ VIP 过滤：非 VIP 只能看到 vipLevelRequired=0（或字段缺失）
+            if (Boolean.FALSE.equals(isVipActive)) {
+                goodsList = goodsList.stream()
+                        .filter(g -> g.getVipLevelRequired() == null || g.getVipLevelRequired() == 0)
+                        .toList();
+            }
+
+
             return new ResponseMessage<>(ErrorCode.SUCCESS.getCode(), ErrorCode.SUCCESS.getMessage(), goodsList);
+        } catch (Exception e) {
+            throw new BusinessException(ErrorCode.DB_ERROR, e.getMessage());
+        }
+    }
+
+    @PostMapping("/admin/vouchers")
+    public ResponseMessage<Goods> createVoucher(@RequestBody Goods goods) {
+        goods.setType("voucher");
+        goods.setIsForRedemption(true);
+
+        if (goods.getRedemptionPoints() == null || goods.getRedemptionPoints() <= 0) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "VOUCHER_REDEMPTION_POINTS_INVALID");
+        }
+        if (goods.getStock() == null) goods.setStock(0);
+
+        Goods created = goodsService.createGoods(goods);
+        return new ResponseMessage<>(ErrorCode.SUCCESS.getCode(), ErrorCode.SUCCESS.getMessage(), created);
+    }
+
+
+    @PutMapping("/admin/vouchers/{id}")
+    public ResponseMessage<Goods> updateVoucher(@PathVariable String id, @RequestBody Goods goods) {
+        Goods existing = goodsService.getGoodsById(id);
+        if (existing.getType() == null || !"voucher".equalsIgnoreCase(existing.getType())) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "NOT_A_VOUCHER");
+        }
+
+        goods.setType("voucher");
+        goods.setIsForRedemption(true);
+
+        Goods updated = goodsService.updateGoods(id, goods);
+        return new ResponseMessage<>(ErrorCode.SUCCESS.getCode(), ErrorCode.SUCCESS.getMessage(), updated);
+    }
+
+
+    @DeleteMapping("/admin/vouchers/{id}")
+    public ResponseMessage<Void> deleteVoucher(@PathVariable String id) {
+        Goods existing = goodsService.getGoodsById(id);
+        if (existing.getType() == null || !"voucher".equalsIgnoreCase(existing.getType())) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "NOT_A_VOUCHER");
+        }
+
+        goodsService.deleteGoods(id);
+        return new ResponseMessage<>(ErrorCode.SUCCESS.getCode(), ErrorCode.SUCCESS.getMessage(), null);
+    }
+
+
+    @GetMapping("/admin/vouchers")
+    public ResponseMessage<List<Goods>> adminGetAllVouchers() {
+        try {
+            List<Goods> goodsList = goodsService.getAllGoods();
+
+            goodsList = goodsList.stream()
+                    .filter(g -> g.getType() != null && g.getType().equalsIgnoreCase("voucher"))
+                    .toList();
+
+            return new ResponseMessage<>(
+                    ErrorCode.SUCCESS.getCode(),
+                    ErrorCode.SUCCESS.getMessage(),
+                    goodsList
+            );
         } catch (Exception e) {
             throw new BusinessException(ErrorCode.DB_ERROR, e.getMessage());
         }
