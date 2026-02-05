@@ -13,109 +13,60 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-/**
- * 广告管理接口控制器
- * 路径规范：/api/v1/advertisements
- */
 @CrossOrigin
 @RestController
-@RequestMapping("/api/v1/advertisements")
+@RequestMapping("/api/v1") // Base path is /api/v1
 public class AdvertisementController {
     private static final Logger logger = LoggerFactory.getLogger(AdvertisementController.class);
 
     @Autowired
     private AdvertisementInterface advertisementService;
 
-    /**
-     * 获取所有广告
-     * GET /api/v1/advertisements
-     */
-    @GetMapping
-    public ResponseMessage<Page<Advertisement>> getAllAdvertisements(@RequestParam(defaultValue = "") String name, @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
-        logger.info("获取所有广告列表");
+    // === Web Endpoints ===
+
+    @GetMapping("/web/advertisements")
+    public ResponseMessage<Page<Advertisement>> getAllWebAdvertisements(@RequestParam(defaultValue = "") String name, @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
+        logger.info("[WEB] Fetching all advertisements");
         Pageable pageable = PageRequest.of(page, size);
-        Page<Advertisement> advertisements = advertisementService.getAllAdvertisements(name, pageable);
-        return ResponseMessage.success(advertisements);
+        return ResponseMessage.success(advertisementService.getAllAdvertisements(name, pageable));
     }
 
-    /**
-     * 根据ID获取广告
-     * GET /api/v1/advertisements/{id}
-     */
-    @GetMapping("/{id}")
-    public ResponseMessage<Advertisement> getAdvertisementById(@PathVariable String id) {
-        logger.info("获取广告详情，ID：{}", id);
-        Advertisement advertisement = advertisementService.getAdvertisementById(id);
-        return ResponseMessage.success(advertisement);
+    @GetMapping("/web/advertisements/{id}")
+    public ResponseMessage<Advertisement> getWebAdvertisementById(@PathVariable String id) {
+        logger.info("[WEB] Fetching advertisement by ID: {}", id);
+        return ResponseMessage.success(advertisementService.getAdvertisementById(id));
     }
 
-    /**
-     * 创建新广告
-     * POST /api/v1/advertisements
-     */
-    @PostMapping
-    public ResponseMessage<Advertisement> createAdvertisement(@RequestBody Advertisement advertisement) {
-        logger.info("创建新广告：{}", advertisement.getName());
-        Advertisement created = advertisementService.createAdvertisement(advertisement);
-        return ResponseMessage.success(created);
+    @PostMapping("/web/advertisements")
+    public ResponseMessage<Advertisement> createWebAdvertisement(@RequestBody Advertisement advertisement) {
+        logger.info("[WEB] Creating new advertisement: {}", advertisement.getName());
+        return ResponseMessage.success(advertisementService.createAdvertisement(advertisement));
     }
 
-    /**
-     * 更新广告
-     * PUT /api/v1/advertisements/{id}
-     */
-    @PutMapping("/{id}")
-    public ResponseMessage<Advertisement> updateAdvertisement(
-            @PathVariable String id,
-            @RequestBody Advertisement advertisement) {
-        logger.info("更新广告，ID：{}", id);
-        Advertisement updated = advertisementService.updateAdvertisement(id, advertisement);
-        return ResponseMessage.success(updated);
+    @PutMapping("/web/advertisements/{id}")
+    public ResponseMessage<Advertisement> updateWebAdvertisement(@PathVariable String id, @RequestBody Advertisement advertisement) {
+        logger.info("[WEB] Updating advertisement: {}", id);
+        return ResponseMessage.success(advertisementService.updateAdvertisement(id, advertisement));
     }
 
-    /**
-     * 删除广告
-     * DELETE /api/v1/advertisements/{id}
-     */
-    @DeleteMapping("/{id}")
-    public ResponseMessage<Void> deleteAdvertisement(@PathVariable String id) {
-        logger.info("删除广告，ID：{}", id);
+    @DeleteMapping("/web/advertisements/{id}")
+    public ResponseMessage<Void> deleteWebAdvertisement(@PathVariable String id) {
+        logger.info("[WEB] Deleting advertisement: {}", id);
         advertisementService.deleteAdvertisement(id);
         return ResponseMessage.success(null);
     }
 
-    /**
-     * 根据状态获取广告
-     * GET /api/v1/advertisements/status/{status}
-     */
-    @GetMapping("/status/{status}")
-    public ResponseMessage<List<Advertisement>> getAdvertisementsByStatus(@PathVariable String status) {
-        logger.info("按状态查询广告，状态：{}", status);
-        List<Advertisement> advertisements = advertisementService.getAdvertisementsByStatus(status);
-        return ResponseMessage.success(advertisements);
+    @PatchMapping("/web/advertisements/{id}/status")
+    public ResponseMessage<Advertisement> updateWebAdvertisementStatus(@PathVariable String id, @RequestParam String status) {
+        logger.info("[WEB] Updating advertisement status: {}, new status: {}", id, status);
+        return ResponseMessage.success(advertisementService.updateAdvertisementStatus(id, status));
     }
 
-    /**
-     * 更新广告状态（上下架/暂停）
-     * PATCH /api/v1/advertisements/{id}/status
-     */
-    @PatchMapping("/{id}/status")
-    public ResponseMessage<Advertisement> updateAdvertisementStatus(
-            @PathVariable String id,
-            @RequestParam String status) {
-        logger.info("更新广告状态，ID：{}，新状态：{}", id, status);
-        Advertisement updated = advertisementService.updateAdvertisementStatus(id, status);
-        return ResponseMessage.success(updated);
-    }
+    // === Mobile Endpoints ===
 
-    /**
-     * 获取当前有效的广告（供Mobile端展示）
-     * GET /api/v1/advertisements/active
-     */
-    @GetMapping("/active")
-    public ResponseMessage<List<Advertisement>> getActiveAdvertisements() {
-        logger.info("获取当前有效广告（Mobile端）");
-        List<Advertisement> advertisements = advertisementService.getActiveAdvertisements();
-        return ResponseMessage.success(advertisements);
+    @GetMapping("/mobile/advertisements/active")
+    public ResponseMessage<List<Advertisement>> getActiveMobileAdvertisements() {
+        logger.info("[Mobile] Fetching active advertisements");
+        return ResponseMessage.success(advertisementService.getActiveAdvertisements());
     }
 }
