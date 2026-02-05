@@ -7,11 +7,37 @@ import java.util.List;
 public class UserProfileDto {
 
     public static class UpdateProfileRequest {
-
         public String nickname;
         public String avatar;
         public String phone;
-        public User.Preferences preferences;
+        public String faculty; // New field
+        public PreferencesDto preferences;
+    }
+
+    public static class PreferencesDto {
+        public java.util.List<String> preferredTransport; // Changed to List
+        public Boolean enablePush;
+        public Boolean enableEmail;
+        public Boolean enableBusReminder;
+        public String language;
+        public String theme;
+        public Boolean shareLocation;
+        public Boolean showOnLeaderboard;
+        public Boolean shareAchievements;
+
+        // New Location Fields
+        public String dormitoryOrResidence;
+        public String mainTeachingBuilding;
+        public String favoriteStudySpot;
+
+        // New Interests & Goals
+        public java.util.List<String> interests;
+        public Integer weeklyGoals;
+
+        // New Notifications
+        public Boolean newChallenges;
+        public Boolean activityReminders;
+        public Boolean friendActivity;
     }
 
     public static class AdminManageUserRequest {
@@ -37,13 +63,9 @@ public class UserProfileDto {
 
     public static class UserDetailResponse {
         public User user_info;
-        public User.Vip vip_info;
-        public User.Stats stats;
 
         public UserDetailResponse(User user) {
             this.user_info = user;
-            this.vip_info = user.getVip();
-            this.stats = user.getStats();
         }
     }
 
