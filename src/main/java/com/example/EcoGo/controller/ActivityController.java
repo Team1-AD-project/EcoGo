@@ -71,6 +71,12 @@ public class ActivityController {
         return ResponseMessage.success(activityService.getAllActivities());
     }
 
+    @GetMapping("/mobile/activities/{id}")
+    public ResponseMessage<Activity> getMobileActivityById(@PathVariable String id) {
+        logger.info("[Mobile] Fetching activity by ID: {}", id);
+        return ResponseMessage.success(activityService.getActivityById(id));
+    }
+
     @PostMapping("/mobile/activities/{id}/join")
     public ResponseMessage<Activity> joinMobileActivity(@PathVariable String id, @RequestParam String userId) {
         logger.info("[Mobile] User {} joining activity {}", userId, id);
