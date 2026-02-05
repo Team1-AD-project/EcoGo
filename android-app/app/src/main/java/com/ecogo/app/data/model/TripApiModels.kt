@@ -34,21 +34,9 @@ data class TripStartRequest(
 )
 
 /**
- * 开始行程响应
+ * 开始行程响应 - 实际返回TripResponse对象
  */
-data class TripStartResponse(
-    @SerializedName("tripId")
-    val tripId: String,
-
-    @SerializedName("startTime")
-    val startTime: String,
-
-    @SerializedName("status")
-    val status: String,
-
-    @SerializedName("message")
-    val message: String? = null
-)
+typealias TripStartResponse = TripDetail
 
 // ============================================================
 // 2. 完成行程 POST /mobile/trips/{tripId}/complete
@@ -86,7 +74,7 @@ data class TripCompleteRequest(
     val isGreenTrip: Boolean,
 
     @SerializedName("carbonSaved")
-    val carbonSaved: Double,
+    val carbonSaved: Long,  // 单位：克(g)
 
     @SerializedName("transportModes")
     val transportModes: List<TransportModeSegment>,
@@ -121,33 +109,9 @@ data class PolylinePoint(
 )
 
 /**
- * 完成行程响应
+ * 完成行程响应 - 实际返回TripResponse对象
  */
-data class TripCompleteResponse(
-    @SerializedName("tripId")
-    val tripId: String,
-
-    @SerializedName("status")
-    val status: String,
-
-    @SerializedName("endTime")
-    val endTime: String,
-
-    @SerializedName("totalDistance")
-    val totalDistance: Double? = null,
-
-    @SerializedName("totalDuration")
-    val totalDuration: Int? = null,
-
-    @SerializedName("carbonSaved")
-    val carbonSaved: Double? = null,
-
-    @SerializedName("greenPoints")
-    val greenPoints: Int? = null,
-
-    @SerializedName("message")
-    val message: String? = null
-)
+typealias TripCompleteResponse = TripDetail
 
 // ============================================================
 // 3. 取消行程 POST /mobile/trips/{tripId}/cancel
@@ -251,10 +215,10 @@ data class TripDetail(
     val isGreenTrip: Boolean? = null,
 
     @SerializedName("carbonSaved")
-    val carbonSaved: Double? = null,
+    val carbonSaved: Long? = null,  // 单位：克(g)
 
-    @SerializedName("greenPoints")
-    val greenPoints: Int? = null,
+    @SerializedName("pointsGained")
+    val pointsGained: Long? = null,
 
     @SerializedName("transportModes")
     val transportModes: List<TransportModeSegment>? = null,
