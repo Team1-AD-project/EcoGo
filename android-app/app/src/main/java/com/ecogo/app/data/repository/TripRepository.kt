@@ -92,10 +92,17 @@ class TripRepository private constructor() {
             val response = tripApiService.startTrip(authToken, request)
 
             if (response.isSuccessful && response.body() != null) {
-                val tripId = response.body()!!.tripId
-                currentTripId = tripId
-                Log.d(TAG, "Trip started successfully: tripId=$tripId")
-                Result.success(tripId)
+                val apiResponse = response.body()!!
+                if (apiResponse.success && apiResponse.data != null) {
+                    val tripId = apiResponse.data.tripId
+                    currentTripId = tripId
+                    Log.d(TAG, "Trip started successfully: tripId=$tripId")
+                    Result.success(tripId)
+                } else {
+                    val error = "API returned error: ${apiResponse.message}"
+                    Log.e(TAG, error)
+                    Result.failure(Exception(error))
+                }
             } else {
                 val error = "Failed to start trip: ${response.code()} ${response.message()}"
                 Log.e(TAG, error)
@@ -124,7 +131,7 @@ class TripRepository private constructor() {
      * @param transportMode 主要交通方式
      * @param detectedMode AI检测的交通方式
      * @param mlConfidence ML置信度
-     * @param carbonSaved 减碳量
+     * @param carbonSaved 减碳量（克）
      * @param isGreenTrip 是否为绿色出行
      *
      * @return Result<TripCompleteResponse>
@@ -140,7 +147,7 @@ class TripRepository private constructor() {
         transportMode: String,
         detectedMode: String? = null,
         mlConfidence: Double? = null,
-        carbonSaved: Double = 0.0,
+        carbonSaved: Long = 0L,
         isGreenTrip: Boolean = false
     ): Result<TripCompleteResponse> = withContext(Dispatchers.IO) {
         try {
@@ -177,15 +184,22 @@ class TripRepository private constructor() {
             val response = tripApiService.completeTrip(tripId, authToken, request)
 
             if (response.isSuccessful && response.body() != null) {
-                val result = response.body()!!
-                Log.d(TAG, "Trip completed successfully: $result")
+                val apiResponse = response.body()!!
+                if (apiResponse.success && apiResponse.data != null) {
+                    val result = apiResponse.data
+                    Log.d(TAG, "Trip completed successfully: $result")
 
-                // 清除当前行程ID
-                if (currentTripId == tripId) {
-                    currentTripId = null
+                    // 清除当前行程ID
+                    if (currentTripId == tripId) {
+                        currentTripId = null
+                    }
+
+                    Result.success(result)
+                } else {
+                    val error = "API returned error: ${apiResponse.message}"
+                    Log.e(TAG, error)
+                    Result.failure(Exception(error))
                 }
-
-                Result.success(result)
             } else {
                 val error = "Failed to complete trip: ${response.code()} ${response.message()}"
                 Log.e(TAG, error)
@@ -204,22 +218,28 @@ class TripRepository private constructor() {
     /**
      * 取消行程
      */
-    suspend fun cancelTrip(tripId: String): Result<TripCancelResponse> = withContext(Dispatchers.IO) {
+    suspend fun cancelTrip(tripId: String): Result<String> = withContext(Dispatchers.IO) {
         try {
             Log.d(TAG, "Canceling trip: tripId=$tripId")
 
             val response = tripApiService.cancelTrip(tripId, authToken)
 
             if (response.isSuccessful && response.body() != null) {
-                val result = response.body()!!
-                Log.d(TAG, "Trip canceled successfully")
+                val apiResponse = response.body()!!
+                if (apiResponse.success && apiResponse.data != null) {
+                    Log.d(TAG, "Trip canceled successfully: ${apiResponse.data}")
 
-                // 清除当前行程ID
-                if (currentTripId == tripId) {
-                    currentTripId = null
+                    // 清除当前行程ID
+                    if (currentTripId == tripId) {
+                        currentTripId = null
+                    }
+
+                    Result.success(apiResponse.data)
+                } else {
+                    val error = "API returned error: ${apiResponse.message}"
+                    Log.e(TAG, error)
+                    Result.failure(Exception(error))
                 }
-
-                Result.success(result)
             } else {
                 val error = "Failed to cancel trip: ${response.code()} ${response.message()}"
                 Log.e(TAG, error)
@@ -249,9 +269,16 @@ class TripRepository private constructor() {
             val response = tripApiService.getTripList(authToken, page, pageSize, status)
 
             if (response.isSuccessful && response.body() != null) {
-                val trips = response.body()!!.trips
-                Log.d(TAG, "Fetched ${trips.size} trips from cloud")
-                Result.success(trips)
+                val apiResponse = response.body()!!
+                if (apiResponse.success && apiResponse.data != null) {
+                    val trips = apiResponse.data
+                    Log.d(TAG, "Fetched ${trips.size} trips from cloud")
+                    Result.success(trips)
+                } else {
+                    val error = "API returned error: ${apiResponse.message}"
+                    Log.e(TAG, error)
+                    Result.failure(Exception(error))
+                }
             } else {
                 val error = "Failed to fetch trips: ${response.code()} ${response.message()}"
                 Log.e(TAG, error)
@@ -289,9 +316,16 @@ class TripRepository private constructor() {
             val response = tripApiService.getTripDetail(tripId, authToken)
 
             if (response.isSuccessful && response.body() != null) {
-                val trip = response.body()!!
-                Log.d(TAG, "Fetched trip detail successfully")
-                Result.success(trip)
+                val apiResponse = response.body()!!
+                if (apiResponse.success && apiResponse.data != null) {
+                    val trip = apiResponse.data
+                    Log.d(TAG, "Fetched trip detail successfully")
+                    Result.success(trip)
+                } else {
+                    val error = "API returned error: ${apiResponse.message}"
+                    Log.e(TAG, error)
+                    Result.failure(Exception(error))
+                }
             } else {
                 val error = "Failed to fetch trip detail: ${response.code()} ${response.message()}"
                 Log.e(TAG, error)
@@ -317,14 +351,21 @@ class TripRepository private constructor() {
             val response = tripApiService.getCurrentTrip(authToken)
 
             if (response.isSuccessful && response.body() != null) {
-                val result = response.body()!!
-                if (result.hasCurrentTrip && result.trip != null) {
-                    currentTripId = result.trip.tripId
-                    Log.d(TAG, "Current trip found: ${result.trip.tripId}")
-                    Result.success(result.trip)
+                val apiResponse = response.body()!!
+                if (apiResponse.success) {
+                    val trip = apiResponse.data
+                    if (trip != null) {
+                        currentTripId = trip.tripId
+                        Log.d(TAG, "Current trip found: ${trip.tripId}")
+                        Result.success(trip)
+                    } else {
+                        Log.d(TAG, "No current trip")
+                        Result.success(null)
+                    }
                 } else {
-                    Log.d(TAG, "No current trip")
-                    Result.success(null)
+                    val error = "API returned error: ${apiResponse.message}"
+                    Log.e(TAG, error)
+                    Result.failure(Exception(error))
                 }
             } else {
                 val error = "Failed to fetch current trip: ${response.code()} ${response.message()}"
