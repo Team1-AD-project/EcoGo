@@ -28,6 +28,9 @@ public class PointsServiceImpl implements PointsService {
     private UserPointsLogRepository pointsLogRepository;
 
     @Autowired
+    private com.example.EcoGo.repository.FacultyRepository facultyRepository;
+
+    @Autowired
     @Lazy
     private BadgeService badgeService;
 
@@ -68,6 +71,18 @@ public class PointsServiceImpl implements PointsService {
         if (points > 0 && isTripSource) {
             long carbonSaved = points / 10;
             user.setTotalCarbon(user.getTotalCarbon() + carbonSaved);
+        }
+
+        // Update Faculty Points
+        // Condition: Points > 0 and User belongs to a faculty
+        if (points > 0 && user.getFaculty() != null && !user.getFaculty().isEmpty()) {
+            final long pointsToAdd = points;
+            String facultyName = user.getFaculty();
+            com.example.EcoGo.model.Faculty faculty = facultyRepository.findByName(facultyName)
+                    .orElseGet(() -> new com.example.EcoGo.model.Faculty(facultyName));
+
+            faculty.setTotalPoints(faculty.getTotalPoints() + pointsToAdd);
+            facultyRepository.save(faculty);
         }
 
         userRepository.save(user);
