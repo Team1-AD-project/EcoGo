@@ -23,6 +23,8 @@ public class Goods {
     private Date createdAt = new Date();
     private Date updatedAt = new Date();
 
+    private Integer vipLevelRequired = 0;
+
     // 兑换相关字段
     private Boolean isForRedemption = false;      // 是否可用于兑换
     private Integer redemptionPoints = 0;         // 兑换所需积分
@@ -93,5 +95,9 @@ public class Goods {
 
     public String getType() { return type; }
     public void setType(String type) { this.type = type; }
+
+    public Integer getVipLevelRequired() {return vipLevelRequired; }
+    public void setVipLevelRequired(Integer vipLevelRequired) {this.vipLevelRequired = vipLevelRequired;}
+
 
 }

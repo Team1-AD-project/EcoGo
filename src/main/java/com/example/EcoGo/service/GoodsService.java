@@ -20,9 +20,6 @@ public interface GoodsService {
     // 删除所有商品
     void deleteAllGoods();
     
-    // 插入测试商品数据
-    void insertTestData();
-    
     // 根据ID获取商品
     Goods getGoodsById(String id);
     
