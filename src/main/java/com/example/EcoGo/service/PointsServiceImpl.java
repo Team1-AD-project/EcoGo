@@ -317,17 +317,9 @@ public class PointsServiceImpl implements PointsService {
             return 0;
         }
 
-        // 3. Extract Business UserIDs
-        List<String> userIds = facultyUsers.stream()
-                .map(User::getUserid)
-                .collect(Collectors.toList());
-
-        // 4. Find all 'gain' logs for these users
-        List<UserPointsLog> logs = pointsLogRepository.findByUserIdInAndChangeType(userIds, "gain");
-
-        // 5. Sum points
-        return logs.stream()
-                .mapToLong(UserPointsLog::getPoints)
+        // 3. Sum totalPoints from User entities directly
+        return facultyUsers.stream()
+                .mapToLong(User::getTotalPoints)
                 .sum();
     }
 }
