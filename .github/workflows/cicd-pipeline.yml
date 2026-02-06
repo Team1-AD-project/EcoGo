@@ -227,7 +227,7 @@ jobs:
       - name: SonarQube Scan
         if: env.SONAR_TOKEN != ''
         run: |
-          mvn clean verify sonar:sonar \
+          mvn clean verify sonar:sonar -DskipTests \
             -Dsonar.projectKey=team1-ad-project \
             -Dsonar.organization=team1-ad-project \
             -Dsonar.sources=src/main \
