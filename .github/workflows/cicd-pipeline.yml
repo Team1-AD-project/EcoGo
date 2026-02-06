@@ -1,4 +1,5 @@
 name: EcoGo CI/CD Pipeline
+# Trigger CI run after disabling SonarCloud Automatic Analysis
 
 on:
   push:
