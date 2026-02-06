@@ -9,6 +9,9 @@ import com.example.EcoGo.repository.UserRepository;
 import com.example.EcoGo.repository.UserVoucherRepository;
 import com.example.EcoGo.model.UserVoucher;
 import com.example.EcoGo.model.VoucherStatus;
+import com.example.EcoGo.exception.BusinessException;
+import com.example.EcoGo.exception.errorcode.ErrorCode;
+
 
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,6 +51,24 @@ public class OrderServiceImpl implements OrderService {
                     UUID.randomUUID().toString().substring(0, 6).toUpperCase();
             order.setOrderNumber(orderNumber);
         }
+        
+        // ✅ VIP_REQUIRED 强校验：vipLevelRequired=1 的 goods 必须是 VIP 用户
+        if (order.getUserId() != null && order.getItems() != null && !order.getItems().isEmpty()) {
+            boolean vipActive = isVipActive(order.getUserId());
+            for (Order.OrderItem item : order.getItems()) {
+                if (item.getGoodsId() == null || item.getGoodsId().isBlank()) continue;
+
+                Goods goods = goodsService.getGoodsById(item.getGoodsId());
+                if (goods == null) continue; // 或者 throw GOODS_NOT_FOUND
+
+                if (goods.getVipLevelRequired() != null && goods.getVipLevelRequired() == 1) {
+                    if (!vipActive) {
+                        throw new RuntimeException("VIP_REQUIRED: " + item.getGoodsId());
+                    }
+                }
+            }
+        }
+
 
         // 计算总金额
         if (order.getItems() != null && !order.getItems().isEmpty()) {
@@ -122,15 +143,35 @@ public class OrderServiceImpl implements OrderService {
     }
 
     /**
+    * 判断用户是否为有效 VIP：vip.is_active=true 且 expiryDate > now
+    */
+    private boolean isVipActive(String userId) {
+        if (userId == null || userId.isBlank()) return false;
+
+        Optional<User> userOpt = userRepository.findByUserid(userId);
+        if (userOpt.isEmpty()) {
+            userOpt = userRepository.findById(userId);
+        }
+        if (userOpt.isEmpty()) return false;
+
+        User user = userOpt.get();
+        User.Vip vip = user.getVip();
+        if (vip == null) return false;
+
+        LocalDateTime now = LocalDateTime.now();
+        return vip.isActive() && vip.getExpiryDate() != null && vip.getExpiryDate().isAfter(now);
+    }
+
+    /**
      * ✅ 积分兑换订单（包含：扣库存 -> 扣积分 -> (如有VIP则开通/续期VIP) -> 保存订单）
      */
     @Override
     public Order createRedemptionOrder(Order order) {
 
         // 0) 基础校验
-        if (order == null) throw new RuntimeException("INVALID_ORDER");
-        if (order.getUserId() == null || order.getUserId().isEmpty()) throw new RuntimeException("MISSING_USER_ID");
-        if (order.getItems() == null || order.getItems().isEmpty()) throw new RuntimeException("MISSING_ORDER_ITEMS");
+        if (order == null) throw new BusinessException(ErrorCode.PARAM_ERROR, "INVALID_ORDER");
+        if (order.getUserId() == null || order.getUserId().isEmpty()) throw new BusinessException(ErrorCode.PARAM_ERROR, "MISSING_USER_ID");
+        if (order.getItems() == null || order.getItems().isEmpty()) throw new BusinessException(ErrorCode.PARAM_ERROR, "MISSING_ORDER_ITEMS");
 
         long totalPointsCost = 0L;
         List<String> reservedGoodsIds = new ArrayList<>();
@@ -147,18 +188,25 @@ public class OrderServiceImpl implements OrderService {
             // 1) 校验每个 item，并计算总积分；同时扣库存
             for (Order.OrderItem item : order.getItems()) {
                 if (item.getGoodsId() == null || item.getGoodsId().isEmpty()) {
-                    throw new RuntimeException("MISSING_GOODS_ID");
+                    throw new BusinessException(ErrorCode.PARAM_ERROR, "MISSING_GOODS_ID");
                 }
                 int qty = (item.getQuantity() == null || item.getQuantity() <= 0) ? 1 : item.getQuantity();
 
                 Goods goods = goodsService.getGoodsById(item.getGoodsId());
                 if (goods == null) throw new RuntimeException("GOODS_NOT_FOUND: " + item.getGoodsId());
                 if (!Boolean.TRUE.equals(goods.getIsForRedemption())) {
-                    throw new RuntimeException("GOODS_NOT_FOR_REDEMPTION: " + item.getGoodsId());
+                    throw new BusinessException(ErrorCode.PARAM_ERROR, "GOODS_NOT_FOR_REDEMPTION: " + item.getGoodsId());
+                }
+
+                // ✅ VIP_REQUIRED：vipLevelRequired=1 => 必须是 VIP 用户
+                if (goods.getVipLevelRequired() != null && goods.getVipLevelRequired() == 1) {
+                    if (!isVipActive(userId)) {
+                        throw new BusinessException(ErrorCode.PARAM_ERROR,"VIP_REQUIRED: " + item.getGoodsId());
+                    }
                 }
 
                 int pointsPerUnit = (goods.getRedemptionPoints() == null) ? 0 : goods.getRedemptionPoints();
-                if (pointsPerUnit <= 0) throw new RuntimeException("INVALID_REDEMPTION_POINTS: " + item.getGoodsId());
+                if (pointsPerUnit <= 0) throw new BusinessException(ErrorCode.PARAM_ERROR, "INVALID_REDEMPTION_POINTS: " + item.getGoodsId());
 
                 long cost = (long) pointsPerUnit * (long) qty;
                 totalPointsCost += cost;

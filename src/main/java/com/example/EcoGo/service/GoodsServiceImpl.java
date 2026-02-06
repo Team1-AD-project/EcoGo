@@ -51,7 +51,7 @@ public class GoodsServiceImpl implements GoodsService {
 
     Inventory after = mongoTemplate.findAndModify(query, update, options, Inventory.class, "inventory");
     if (after == null) {
-        throw new RuntimeException("OUT_OF_STOCK");
+        throw new BusinessException(ErrorCode.PARAM_ERROR, "OUT_OF_STOCK");
     }
 
     // 同步 Goods.stock（兼容 mobile/redemption 的 goods.getStock() > 0 过滤）
@@ -101,6 +101,15 @@ public class GoodsServiceImpl implements GoodsService {
         if (stock < 0) stock = 0;  // 如果你想严格：这里改成 throw new BusinessException(...)
         goods.setStock(stock);
 
+        // ✅ VIP 可见性：null 当 0；只允许 0/1
+        Integer vipReq = goods.getVipLevelRequired();
+        if (vipReq == null) vipReq = 0;
+        if (vipReq != 0 && vipReq != 1) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "isVipRequired must be 0 or 1");
+        }
+        goods.setVipLevelRequired(vipReq);
+
+
         Goods saved = goodsRepository.save(goods);
 
     // ✅ 同步库存到 inventory（id = goodsId）
@@ -141,6 +150,14 @@ public class GoodsServiceImpl implements GoodsService {
             updatedGoods.setImageUrl(goods.getImageUrl());
             updatedGoods.setIsActive(goods.getIsActive());
             updatedGoods.setIsForRedemption(goods.getIsForRedemption());
+            // ✅ VIP 可见性：null 当 0；只允许 0/1
+            Integer vipReq = goods.getVipLevelRequired();
+            if (vipReq == null) vipReq = 0;
+            if (vipReq != 0 && vipReq != 1) {
+                throw new BusinessException(ErrorCode.PARAM_ERROR, "isVipRequired must be 0 or 1");
+            }
+            updatedGoods.setVipLevelRequired(vipReq);
+
             updatedGoods.setRedemptionPoints(goods.getRedemptionPoints());
             updatedGoods.setRedemptionLimit(goods.getRedemptionLimit());
             updatedGoods.setUpdatedAt(new Date());
@@ -184,77 +201,12 @@ public class GoodsServiceImpl implements GoodsService {
         inventoryRepository.deleteAll();
     }
 
-    @Override
-    public void insertTestData() {
-        // 清空现有数据
-        goodsRepository.deleteAll();
-        inventoryRepository.deleteAll();
-
-        // 插入测试商品数据（包含VIP兑换商品）
-        List<Goods> testGoods = Arrays.asList(
-            new Goods("环保水杯", "可重复使用的不锈钢水杯", 59.99, 100),
-            new Goods("有机棉T恤", "100%有机棉制成的环保T恤", 89.99, 50),
-            new Goods("太阳能充电宝", "使用太阳能充电的移动电源", 199.99, 30),
-            new Goods("竹制餐具套装", "环保竹制餐具，包含筷子、勺子和叉子", 39.99, 80),
-            new Goods("垃圾分类桶", "四个分类的家用垃圾桶", 129.99, 25)
-        );
-
-        // 设置分类、品牌和图片 + 兑换信息（保持你原来的内容不动）
-        testGoods.get(0).setCategory("日常用品");
-        testGoods.get(0).setBrand("EcoBrand");
-        testGoods.get(0).setImageUrl("/images/water-cup.jpg");
-        testGoods.get(0).setIsForRedemption(true);
-        testGoods.get(0).setRedemptionPoints(500);
-
-        testGoods.get(1).setCategory("服装");
-        testGoods.get(1).setBrand("EcoFashion");
-        testGoods.get(1).setImageUrl("/images/t-shirt.jpg");
-        testGoods.get(1).setIsForRedemption(true);
-        testGoods.get(1).setRedemptionPoints(800);
-
-        testGoods.get(2).setCategory("电子产品");
-        testGoods.get(2).setBrand("EcoTech");
-        testGoods.get(2).setImageUrl("/images/power-bank.jpg");
-        testGoods.get(2).setIsForRedemption(true);
-        testGoods.get(2).setRedemptionPoints(2000);
-
-        testGoods.get(3).setCategory("厨房用品");
-        testGoods.get(3).setBrand("EcoKitchen");
-        testGoods.get(3).setImageUrl("/images/utensils.jpg");
-        testGoods.get(3).setIsForRedemption(false);
-        testGoods.get(3).setRedemptionPoints(0);
-
-        testGoods.get(4).setCategory("家居用品");
-        testGoods.get(4).setBrand("EcoHome");
-        testGoods.get(4).setImageUrl("/images/bin.jpg");
-        testGoods.get(4).setIsForRedemption(true);
-        testGoods.get(4).setRedemptionPoints(1200);
-
-        // ✅ 先保存 goods 以获取 id
-        List<Goods> savedGoods = goodsRepository.saveAll(testGoods);
-
-        // ✅ 为每个 goods 创建 inventory 记录（id=goodsId）
-        for (Goods g : savedGoods) {
-            Inventory inv = new Inventory();
-            inv.setId(g.getId());
-            inv.setGoodsId(g.getId());
-            inv.setQuantity(g.getStock() == null ? 0 : g.getStock());
-            inv.setUpdatedAt(new Date());
-            inventoryRepository.save(inv);
-
-        // 同步 goods.stock（兼容 mobile/redemption 的 stock>0 过滤）
-        g.setStock(inv.getQuantity());
-        g.setUpdatedAt(new Date());
-        goodsRepository.save(g);
-        }
-    }
-
 
     // 根据ID获取商品
     @Override
     public Goods getGoodsById(String id) {
         return goodsRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Product not found with id " + id));
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_EXIST, id));
     }
 
     @Override

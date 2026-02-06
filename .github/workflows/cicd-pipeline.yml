@@ -1,4 +1,5 @@
 name: EcoGo CI/CD Pipeline
+# Trigger CI run after disabling SonarCloud Automatic Analysis
 
 on:
   push:
@@ -227,8 +228,9 @@ jobs:
       - name: SonarQube Scan
         if: env.SONAR_TOKEN != ''
         run: |
-          mvn clean verify sonar:sonar \
-            -Dsonar.projectKey=ecogo \
+          mvn clean verify sonar:sonar -DskipTests \
+            -Dsonar.projectKey=Team1-AD-project_EcoGo \
+            -Dsonar.organization=team1-ad-project \
             -Dsonar.sources=src/main \
             -Dsonar.tests=src/test \
             -Dsonar.host.url=${{ env.SONAR_HOST_URL }} \
@@ -494,8 +496,8 @@ jobs:
   performance-tests:
     runs-on: ubuntu-latest
     name: Performance Tests - JMeter
-    needs: smoke-tests-staging
-    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/feature/cicdfeature'
+    needs: sonarqube
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/feature/cicdfeature'
     services:
       mongodb:
         image: mongo:latest
@@ -573,7 +575,7 @@ jobs:
     runs-on: ubuntu-latest
     name: DAST with OWASP ZAP
     needs: performance-tests
-    if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/feature/cicdfeature'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/feature/cicdfeature'
     services:
       mongodb:
         image: mongo:latest
