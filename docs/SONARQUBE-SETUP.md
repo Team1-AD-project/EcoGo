@@ -19,7 +19,7 @@ This guide will help you set up SonarQube integration for the EcoGo project in G
 ### Step 3: Configure the Project
 1. Choose **"With GitHub Actions"** as the analysis method
 2. SonarCloud will show you the configuration steps
-3. **Project Key**: Use `Team1-AD-project_EcoGo` (or custom key like `ecogo`)
+3. **Project Key**: Use `team1-ad-project` (this must match the key in your CI/CD workflow)
 4. **Organization Key**: Note your organization key (e.g., `team1-ad-project`)
 
 ### Step 4: Generate SonarCloud Token
@@ -59,7 +59,7 @@ sonarqube:
     - name: SonarQube Scan
       run: |
         mvn clean verify sonar:sonar \
-          -Dsonar.projectKey=ecogo \
+          -Dsonar.projectKey=team1-ad-project \
           -Dsonar.organization=team1-ad-project \
           -Dsonar.host.url=${{ env.SONAR_HOST_URL }} \
           -Dsonar.login=${{ env.SONAR_TOKEN }}
@@ -112,7 +112,7 @@ volumes:
 
 ### Step 3: Create Project in SonarQube
 1. Click **"Create Project"** → **"Manually"**
-2. **Project key**: `ecogo`
+2. **Project key**: `team1-ad-project`
 3. **Display name**: `EcoGo`
 4. Click **"Set Up"**
 
@@ -235,7 +235,7 @@ Add organization parameter to the sonar:sonar command in `.github/workflows/cicd
 
 ```bash
 mvn clean verify sonar:sonar \
-  -Dsonar.projectKey=ecogo \
+  -Dsonar.projectKey=team1-ad-project \
   -Dsonar.organization=team1-ad-project \
   -Dsonar.host.url=${{ env.SONAR_HOST_URL }} \
   -Dsonar.login=${{ env.SONAR_TOKEN }}
@@ -244,8 +244,8 @@ mvn clean verify sonar:sonar \
 ### Test locally (optional)
 ```bash
 mvn clean verify sonar:sonar \
-  -Dsonar.projectKey=ecogo \
-  -Dsonar.organization=YOUR_ORG_KEY \
+  -Dsonar.projectKey=team1-ad-project \
+  -Dsonar.organization=team1-ad-project \
   -Dsonar.host.url=https://sonarcloud.io \
   -Dsonar.login=YOUR_TOKEN
 ```
