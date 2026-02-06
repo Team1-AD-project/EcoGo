@@ -106,6 +106,14 @@ public class TripServiceImpl implements TripService {
         trip.setPointsGained(pointsGained);
         trip.setCarbonStatus("completed");
 
+        // Update user's totalCarbon
+        if (request.carbonSaved > 0) {
+            userRepository.findByUserid(userId).ifPresent(user -> {
+                user.setTotalCarbon(user.getTotalCarbon() + (long) request.carbonSaved);
+                userRepository.save(user);
+            });
+        }
+
         return tripRepository.save(trip);
     }
 
