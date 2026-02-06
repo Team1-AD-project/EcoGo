@@ -33,7 +33,7 @@ public class Badge {
     private String subCategory;
 
     @Field("acquisition_method")
-    private String acquisitionMethod; // e.g. "purchase", "achievement", "reward"
+    private String acquisitionMethod; // e.g. "purchase", "achievement"
 
     @Field("carbon_threshold")
     private Long carbonThreshold; // 当用户 totalCarbon >= 此值时自动解锁（仅 achievement 类型使用）
