@@ -16,6 +16,12 @@ logging:
 server:
   port: 8090
 
+# Weather API configuration
+weather:
+  api:
+    key: ${WEATHER_API_KEY:demo-key}
+    url: ${WEATHER_API_URL:https://api.openweathermap.org/data/2.5/weather}
+
 # Actuator configuration for monitoring
 management:
   endpoints:
