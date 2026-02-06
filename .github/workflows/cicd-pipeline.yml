@@ -37,6 +37,17 @@ jobs:
         if: always()
         run: mvn checkstyle:checkstyle -DskipTests || true
 
+      - name: Upload Lint Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-reports
+          path: |
+            target/checkstyle-result.xml
+            target/site/checkstyle.html
+            target/site/checkstyle/
+          if-no-files-found: warn
+
   # Stage 2: SAST (Static Application Security Testing)
   sast:
     runs-on: ubuntu-latest
@@ -77,7 +88,10 @@ jobs:
           name: sast-reports
           path: |
             target/spotbugsXml.xml
+            target/spotbugs.html
             target/dependency-check-report.html
+            target/dependency-check-report.xml
+            target/dependency-check-report.json
           if-no-files-found: warn
 
   # Stage 3: Build Application
@@ -149,13 +163,32 @@ jobs:
         with:
           sarif_file: 'trivy-results.sarif'
         continue-on-error: true
+
+      - name: Upload Trivy SARIF (Artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-results
+          path: |
+            trivy-results.sarif
+          if-no-files-found: warn
       
       - name: Run Trivy in Table Format
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: 'team1-ad-project/ecogo:scan'
           format: 'table'
+          output: 'trivy-results.txt'
         continue-on-error: true
+
+      - name: Upload Trivy Table Output (Artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-results-table
+          path: |
+            trivy-results.txt
+          if-no-files-found: warn
 
   # Stage 5: Code Coverage Gate
   coverage-check:
@@ -240,6 +273,17 @@ jobs:
       - name: SonarQube Not Configured
         if: env.SONAR_TOKEN == ''
         run: echo "WARNING - SonarQube token not configured. Skipping SonarQube analysis. See .github/SECRETS-TEMPLATE.md to configure."
+
+      - name: Upload SonarQube Evidence (Artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sonarqube-evidence
+          path: |
+            .scannerwork/report-task.txt
+            .scannerwork/scanner-report/
+            target/sonar/
+          if-no-files-found: warn
 
   # Stage 7: Deploy to Staging Environment
   deploy-staging:
@@ -371,6 +415,16 @@ jobs:
           MONGODB_PORT: 27017
           SPRING_DATA_MONGODB_URI: mongodb://localhost:27017/ecogo
 
+      - name: Upload Test Reports (Artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            target/surefire-reports/
+            target/failsafe-reports/
+          if-no-files-found: warn
+
   # Stage 7: Smoke Tests
   smoke-tests-staging:
     runs-on: ubuntu-latest
@@ -418,7 +472,17 @@ jobs:
         if: steps.check_deployment.outputs.has_deployment != 'true'
         run: |
           echo "Starting application locally for smoke tests..."
-          nohup java -jar EcoGo-*.jar > app.log 2>&1 &
+          if ls build-artifacts/*.jar 1> /dev/null 2>&1; then
+            cp build-artifacts/*.jar app.jar
+          elif ls *.jar 1> /dev/null 2>&1; then
+            cp *.jar app.jar
+          else
+            echo "ERROR: No JAR found after downloading build artifacts."
+            ls -la
+            exit 1
+          fi
+
+          nohup java -jar app.jar > app.log 2>&1 &
           
           # Wait for application to start
           for i in {1..30}; do
@@ -448,6 +512,15 @@ jobs:
           echo "Testing API endpoints..."
           curl -f ${{ steps.check_deployment.outputs.target_url }}/actuator/health || echo "Health check completed"
         continue-on-error: true
+
+      - name: Upload Smoke Test Logs (Artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test-logs
+          path: |
+            app.log
+          if-no-files-found: ignore
 
   smoke-tests-production:
     runs-on: ubuntu-latest
@@ -528,7 +601,17 @@ jobs:
       - name: Start Application
         run: |
           echo "Starting application for performance tests..."
-          nohup java -jar EcoGo-*.jar > app.log 2>&1 &
+          if ls build-artifacts/*.jar 1> /dev/null 2>&1; then
+            cp build-artifacts/*.jar app.jar
+          elif ls *.jar 1> /dev/null 2>&1; then
+            cp *.jar app.jar
+          else
+            echo "ERROR: No JAR found after downloading build artifacts."
+            ls -la
+            exit 1
+          fi
+
+          nohup java -jar app.jar > app.log 2>&1 &
           
           # Wait for application to start
           for i in {1..30}; do
@@ -561,6 +644,16 @@ jobs:
           name: jmeter-report
           path: performance-tests/report/
           if-no-files-found: warn
+
+      - name: Upload Performance Raw Results (Artifact)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jmeter-raw
+          path: |
+            performance-tests/results.jtl
+            app.log
+          if-no-files-found: ignore
       
       - name: Check Performance Baseline
         run: |
@@ -608,7 +701,17 @@ jobs:
       - name: Start Application
         run: |
           echo "Starting EcoGo application..."
-          nohup java -jar EcoGo-*.jar > app.log 2>&1 &
+          if ls build-artifacts/*.jar 1> /dev/null 2>&1; then
+            cp build-artifacts/*.jar app.jar
+          elif ls *.jar 1> /dev/null 2>&1; then
+            cp *.jar app.jar
+          else
+            echo "ERROR: No JAR found after downloading build artifacts."
+            ls -la
+            exit 1
+          fi
+
+          nohup java -jar app.jar > app.log 2>&1 &
           APP_PID=$!
           echo "Application started with PID: $APP_PID"
           
@@ -642,48 +745,48 @@ jobs:
       - name: Run OWASP ZAP Baseline Scan
         run: |
           echo "Starting OWASP ZAP baseline scan..."
+          mkdir -p dast-report
           docker run --network="host" -v $(pwd):/zap/wrk/:rw \
-            -t zaproxy/zap-stable zap-baseline.py \
+            owasp/zap2docker-stable zap-baseline.py \
             -t http://localhost:8090 \
             -g gen.conf \
-            -r testreport.html \
-            -w testreport.md \
-            -J zap-report.json \
-            -x zap-report.xml || echo "ZAP scan completed with findings"
+            -r dast-report/zap-report.html \
+            -w dast-report/zap-report.md \
+            -J dast-report/zap-report.json \
+            -x dast-report/zap-report.xml || echo "ZAP scan completed with findings"
         continue-on-error: true
 
       - name: Run Full ZAP Scan with Config
         run: |
           echo "Starting full OWASP ZAP scan with configuration..."
+          mkdir -p dast-report
           docker run --network="host" -v $(pwd):/zap/wrk/:rw \
-            -t zaproxy/zap-stable zap-full-scan.py \
+            owasp/zap2docker-stable zap-full-scan.py \
             -t http://localhost:8090 \
             -c .zap/zap-config.yaml \
-            -r zap-report.html \
-            -w zap-report.md \
-            -J zap-report-full.json \
-            -x zap-report-full.xml \
+            -r dast-report/zap-report-full.html \
+            -w dast-report/zap-report-full.md \
+            -J dast-report/zap-report-full.json \
+            -x dast-report/zap-report-full.xml \
             -z "-config api.addrs.addr.name=.* -config api.addrs.addr.regex=true" || echo "Full ZAP scan completed"
         continue-on-error: true
 
       - name: Verify ZAP Reports Generated
         run: |
           echo "Checking for generated ZAP reports..."
-          ls -la | grep zap || echo "No ZAP reports found in root"
-          ls -la *.html 2>/dev/null || echo "No HTML reports found"
-          ls -la *.md 2>/dev/null || echo "No Markdown reports found"
+          ls -la dast-report || true
           
           # Create fallback reports if ZAP scan failed to generate them
-          if [ ! -f "zap-report.html" ]; then
-            echo "<html><body><h1>OWASP ZAP Scan Report</h1><p>Scan completed but detailed report was not generated. Check workflow logs for details.</p></body></html>" > zap-report.html
+          if [ ! -f "dast-report/zap-report.html" ]; then
+            echo "<html><body><h1>OWASP ZAP Scan Report</h1><p>Scan completed but detailed report was not generated. Check workflow logs for details.</p></body></html>" > dast-report/zap-report.html
           fi
           
-          if [ ! -f "zap-report.md" ]; then
-            echo "# OWASP ZAP Scan Report\n\nScan completed but detailed report was not generated. Check workflow logs for details." > zap-report.md
+          if [ ! -f "dast-report/zap-report.md" ]; then
+            echo "# OWASP ZAP Scan Report\n\nScan completed but detailed report was not generated. Check workflow logs for details." > dast-report/zap-report.md
           fi
           
           echo "Final report files:"
-          ls -lh *.html *.md 2>/dev/null || echo "Using fallback reports"
+          ls -lh dast-report/* 2>/dev/null || echo "Using fallback reports"
 
       - name: Upload DAST Report
         if: always()
@@ -691,13 +794,9 @@ jobs:
         with:
           name: dast-report
           path: |
-            zap-report.html
-            zap-report.md
-            testreport.html
-            testreport.md
-            zap-report*.json
-            zap-report*.xml
-          if-no-files-found: ignore
+            dast-report/
+            app.log
+          if-no-files-found: warn
 
   # Stage 10: Setup Monitoring (Prometheus & Grafana)
   monitoring-setup:
