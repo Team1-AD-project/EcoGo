@@ -228,7 +228,8 @@ jobs:
         if: env.SONAR_TOKEN != ''
         run: |
           mvn clean verify sonar:sonar \
-            -Dsonar.projectKey=ecogo \
+            -Dsonar.projectKey=team1-ad-project \
+            -Dsonar.organization=team1-ad-project \
             -Dsonar.sources=src/main \
             -Dsonar.tests=src/test \
             -Dsonar.host.url=${{ env.SONAR_HOST_URL }} \
