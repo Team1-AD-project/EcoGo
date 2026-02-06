@@ -105,7 +105,7 @@ These are configured in the workflow file and don't need to be added as secrets:
 
 - `REGISTRY`: ghcr.io (GitHub Container Registry)
 - `IMAGE_NAME`: ${{ github.repository }}
-- `SONAR_PROJECT_KEY`: ecogo
+- `SONAR_PROJECT_KEY`: team1-ad-project
 
 ## Verification Checklist
 
