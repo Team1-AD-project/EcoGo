@@ -1,42 +1,31 @@
 package com.example.EcoGo.dto;
 
-import com.example.EcoGo.model.Ranking;
 import org.springframework.data.domain.Page;
 
 public class LeaderboardStatsDto {
 
-    private Page<Ranking> rankingsPage;
+    private Page<LeaderboardRankingDto> rankingsPage;
     private long totalCarbonSaved;
     private long totalVipUsers;
+    private long totalRewardsDistributed;
 
-    public LeaderboardStatsDto(Page<Ranking> rankingsPage, long totalCarbonSaved, long totalVipUsers) {
+    public LeaderboardStatsDto(Page<LeaderboardRankingDto> rankingsPage, long totalCarbonSaved,
+                               long totalVipUsers, long totalRewardsDistributed) {
         this.rankingsPage = rankingsPage;
         this.totalCarbonSaved = totalCarbonSaved;
         this.totalVipUsers = totalVipUsers;
+        this.totalRewardsDistributed = totalRewardsDistributed;
     }
 
-    // Getters and Setters
-    public Page<Ranking> getRankingsPage() {
-        return rankingsPage;
-    }
+    public Page<LeaderboardRankingDto> getRankingsPage() { return rankingsPage; }
+    public void setRankingsPage(Page<LeaderboardRankingDto> rankingsPage) { this.rankingsPage = rankingsPage; }
 
-    public void setRankingsPage(Page<Ranking> rankingsPage) {
-        this.rankingsPage = rankingsPage;
-    }
+    public long getTotalCarbonSaved() { return totalCarbonSaved; }
+    public void setTotalCarbonSaved(long totalCarbonSaved) { this.totalCarbonSaved = totalCarbonSaved; }
 
-    public long getTotalCarbonSaved() {
-        return totalCarbonSaved;
-    }
+    public long getTotalVipUsers() { return totalVipUsers; }
+    public void setTotalVipUsers(long totalVipUsers) { this.totalVipUsers = totalVipUsers; }
 
-    public void setTotalCarbonSaved(long totalCarbonSaved) {
-        this.totalCarbonSaved = totalCarbonSaved;
-    }
-
-    public long getTotalVipUsers() {
-        return totalVipUsers;
-    }
-
-    public void setTotalVipUsers(long totalVipUsers) {
-        this.totalVipUsers = totalVipUsers;
-    }
+    public long getTotalRewardsDistributed() { return totalRewardsDistributed; }
+    public void setTotalRewardsDistributed(long totalRewardsDistributed) { this.totalRewardsDistributed = totalRewardsDistributed; }
 }

@@ -2,12 +2,10 @@ package com.example.EcoGo.service;
 
 import com.example.EcoGo.dto.AnalyticsSummaryDto;
 import com.example.EcoGo.interfacemethods.StatisticsInterface;
-import com.example.EcoGo.model.Ranking;
+import com.example.EcoGo.model.Trip;
 import com.example.EcoGo.model.User;
-import com.example.EcoGo.model.UserPointsLog;
-import com.example.EcoGo.repository.RankingRepository;
+import com.example.EcoGo.repository.TripRepository;
 import com.example.EcoGo.repository.UserRepository;
-import com.example.EcoGo.repository.UserPointsLogRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -17,26 +15,20 @@ import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.WeekFields;
 import java.util.*;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 @Service
 public class StatisticsImplementation implements StatisticsInterface {
 
     @Autowired
-    private UserPointsLogRepository pointsLogRepository;
-    @Autowired
     private UserRepository userRepository;
     @Autowired
-    private RankingRepository rankingRepository;
+    private TripRepository tripRepository;
 
     @Override
     public AnalyticsSummaryDto getManagementAnalytics(String timeRange) {
         List<User> allUsers = userRepository.findAll();
         List<User> nonAdminUsers = allUsers.stream().filter(u -> !u.isAdmin()).collect(Collectors.toList());
-        Map<String, List<Ranking>> rankingsByPeriod = rankingRepository.findAll().stream()
-                .filter(r -> r.getPeriod() != null)
-                .collect(Collectors.groupingBy(Ranking::getPeriod));
 
         AnalyticsSummaryDto summary = new AnalyticsSummaryDto();
         List<AnalyticsSummaryDto.UserGrowthPoint> userTrend = new ArrayList<>();
@@ -44,12 +36,10 @@ public class StatisticsImplementation implements StatisticsInterface {
 
         if ("weekly".equals(timeRange)) {
             LocalDate today = LocalDate.now();
-            for (int i = 0; i < 5; i++) { // Last 5 weeks
+            for (int i = 0; i < 5; i++) {
                 LocalDate weekDate = today.minusWeeks(i);
                 WeekFields weekFields = WeekFields.of(Locale.getDefault());
                 int weekNumber = weekDate.get(weekFields.weekOfWeekBasedYear());
-                int year = weekDate.getYear();
-                String periodName = "Week " + weekNumber + ", " + year;
 
                 LocalDateTime weekEnd = weekDate.with(weekFields.dayOfWeek(), 7).atTime(23, 59, 59);
                 LocalDateTime weekStart = weekEnd.minusWeeks(1).plusNanos(1);
@@ -57,15 +47,17 @@ public class StatisticsImplementation implements StatisticsInterface {
                 long totalUsersAtEndOfWeek = nonAdminUsers.stream().filter(u -> u.getCreatedAt() != null && u.getCreatedAt().isBefore(weekEnd)).count();
                 long newUsersInWeek = nonAdminUsers.stream().filter(u -> u.getCreatedAt() != null && u.getCreatedAt().isAfter(weekStart) && u.getCreatedAt().isBefore(weekEnd)).count();
                 long activeUsersInWeek = nonAdminUsers.stream().filter(u -> u.getActivityMetrics() != null && u.getActivityMetrics().getActiveDays7d() > 0 && u.getUpdatedAt().isAfter(weekStart)).count();
-                
-                long carbonSavedInWeek = rankingsByPeriod.getOrDefault(periodName, Collections.emptyList()).stream().mapToLong(Ranking::getCarbonSaved).sum();
+
+                // Sum carbon_saved from completed trips in this week
+                List<Trip> weekTrips = tripRepository.findByStartTimeBetweenAndCarbonStatus(weekStart, weekEnd, "completed");
+                long carbonSavedInWeek = Math.round(weekTrips.stream().mapToDouble(Trip::getCarbonSaved).sum());
 
                 userTrend.add(new AnalyticsSummaryDto.UserGrowthPoint("W" + weekNumber, totalUsersAtEndOfWeek, newUsersInWeek, activeUsersInWeek));
                 carbonTrend.add(new AnalyticsSummaryDto.CarbonGrowthPoint("W" + weekNumber, carbonSavedInWeek, activeUsersInWeek > 0 ? (double)carbonSavedInWeek/activeUsersInWeek : 0));
             }
         } else { // monthly
             YearMonth currentMonth = YearMonth.now();
-            for (int i = 0; i < 6; i++) { // Last 6 months
+            for (int i = 0; i < 6; i++) {
                 YearMonth month = currentMonth.minusMonths(i);
                 LocalDateTime monthEnd = month.atEndOfMonth().atTime(23, 59, 59);
                 LocalDateTime monthStart = month.atDay(1).atStartOfDay();
@@ -73,11 +65,10 @@ public class StatisticsImplementation implements StatisticsInterface {
                 long totalUsersAtEndOfMonth = nonAdminUsers.stream().filter(u -> u.getCreatedAt() != null && u.getCreatedAt().isBefore(monthEnd)).count();
                 long newUsersInMonth = nonAdminUsers.stream().filter(u -> u.getCreatedAt() != null && u.getCreatedAt().isAfter(monthStart) && u.getCreatedAt().isBefore(monthEnd)).count();
                 long activeUsersInMonth = nonAdminUsers.stream().filter(u -> u.getActivityMetrics() != null && u.getActivityMetrics().getActiveDays30d() > 0 && u.getUpdatedAt().isAfter(monthStart)).count();
-                
-                final YearMonth finalMonth = month;
-                long carbonSavedInMonth = rankingsByPeriod.values().stream().flatMap(List::stream)
-                    .filter(r -> r.getStartDate() != null && YearMonth.from(r.getStartDate().toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDate()).equals(finalMonth))
-                    .mapToLong(Ranking::getCarbonSaved).sum();
+
+                // Sum carbon_saved from completed trips in this month
+                List<Trip> monthTrips = tripRepository.findByStartTimeBetweenAndCarbonStatus(monthStart, monthEnd, "completed");
+                long carbonSavedInMonth = Math.round(monthTrips.stream().mapToDouble(Trip::getCarbonSaved).sum());
 
                 userTrend.add(new AnalyticsSummaryDto.UserGrowthPoint(month.format(DateTimeFormatter.ofPattern("MMM")), totalUsersAtEndOfMonth, newUsersInMonth, activeUsersInMonth));
                 carbonTrend.add(new AnalyticsSummaryDto.CarbonGrowthPoint(month.format(DateTimeFormatter.ofPattern("MMM")), carbonSavedInMonth, activeUsersInMonth > 0 ? (double)carbonSavedInMonth/activeUsersInMonth : 0));
@@ -102,7 +93,7 @@ public class StatisticsImplementation implements StatisticsInterface {
             summary.setActiveUsers(new AnalyticsSummaryDto.Metric((double)latestUser.getActiveUsers(), (double)previousUser.getActiveUsers()));
             summary.setTotalCarbonSaved(new AnalyticsSummaryDto.Metric((double)latestCarbon.getCarbonSaved(), (double)previousCarbon.getCarbonSaved()));
             summary.setAverageCarbonPerUser(new AnalyticsSummaryDto.Metric(latestCarbon.getAvgPerUser(), previousCarbon.getAvgPerUser()));
-        } else { // Fallback for insufficient data
+        } else {
             summary.setTotalUsers(new AnalyticsSummaryDto.Metric(0, 0));
             summary.setNewUsers(new AnalyticsSummaryDto.Metric(0, 0));
             summary.setActiveUsers(new AnalyticsSummaryDto.Metric(0, 0));

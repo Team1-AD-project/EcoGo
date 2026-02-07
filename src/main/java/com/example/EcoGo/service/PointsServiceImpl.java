@@ -57,7 +57,8 @@ public class PointsServiceImpl implements PointsService {
         boolean isEarningSource = "trip".equalsIgnoreCase(source)
                 || "mission".equalsIgnoreCase(source)
                 || "task".equalsIgnoreCase(source)
-                || "admin".equalsIgnoreCase(source); // Admin comps usually count
+                || "admin".equalsIgnoreCase(source)
+                || "leaderboard".equalsIgnoreCase(source); // Admin comps usually count
 
         if (points > 0 && isEarningSource) {
             user.setTotalPoints(user.getTotalPoints() + points);
