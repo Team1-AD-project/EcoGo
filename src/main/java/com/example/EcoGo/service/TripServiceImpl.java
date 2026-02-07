@@ -180,9 +180,9 @@ public class TripServiceImpl implements TripService {
     }
 
     @Override
-    public List<TripDto.TripSummaryResponse> getTripsByUser(String userId) {
+    public List<TripDto.TripResponse> getTripsByUser(String userId) {
         return tripRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
-                .map(this::convertToSummary)
+                .map(this::convertToResponse)
                 .collect(Collectors.toList());
     }
 
