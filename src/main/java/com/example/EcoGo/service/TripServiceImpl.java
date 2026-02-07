@@ -51,6 +51,12 @@ public class TripServiceImpl implements TripService {
         trip.setCarbonStatus("tracking");
         trip.setCreatedAt(LocalDateTime.now());
 
+        // Optimization: Store faculty in Trip
+        User user = userRepository.findByUserid(userId).orElse(null);
+        if (user != null) {
+            trip.setFaculty(user.getFaculty());
+        }
+
         return tripRepository.save(trip);
     }
 
@@ -93,7 +99,7 @@ public class TripServiceImpl implements TripService {
             trip.setPolylinePoints(points);
         }
 
-            // Calculate points: carbon取整 * 10, VIP双倍
+        // Calculate points: carbon取整 * 10, VIP双倍
         long basePoints = (long) Math.round(request.carbonSaved) * 10;
 
         // Check if user is VIP and double points switch is enabled

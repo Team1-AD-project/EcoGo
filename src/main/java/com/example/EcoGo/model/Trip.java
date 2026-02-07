@@ -69,23 +69,39 @@ public class Trip {
     @Field("created_at")
     private LocalDateTime createdAt;
 
+    // Optimization: Store faculty directly in Trip to avoid joining User table
+    @Field("faculty")
+    private String faculty;
+
     // --- Nested Classes ---
 
     public static class GeoPoint {
         private double lng;
         private double lat;
 
-        public GeoPoint() {}
+        public GeoPoint() {
+        }
 
         public GeoPoint(double lng, double lat) {
             this.lng = lng;
             this.lat = lat;
         }
 
-        public double getLng() { return lng; }
-        public void setLng(double lng) { this.lng = lng; }
-        public double getLat() { return lat; }
-        public void setLat(double lat) { this.lat = lat; }
+        public double getLng() {
+            return lng;
+        }
+
+        public void setLng(double lng) {
+            this.lng = lng;
+        }
+
+        public double getLat() {
+            return lat;
+        }
+
+        public void setLat(double lat) {
+            this.lat = lat;
+        }
     }
 
     public static class LocationDetail {
@@ -95,7 +111,8 @@ public class Trip {
         @Field("campus_zone")
         private String campusZone;
 
-        public LocationDetail() {}
+        public LocationDetail() {
+        }
 
         public LocationDetail(String address, String placeName, String campusZone) {
             this.address = address;
@@ -103,12 +120,29 @@ public class Trip {
             this.campusZone = campusZone;
         }
 
-        public String getAddress() { return address; }
-        public void setAddress(String address) { this.address = address; }
-        public String getPlaceName() { return placeName; }
-        public void setPlaceName(String placeName) { this.placeName = placeName; }
-        public String getCampusZone() { return campusZone; }
-        public void setCampusZone(String campusZone) { this.campusZone = campusZone; }
+        public String getAddress() {
+            return address;
+        }
+
+        public void setAddress(String address) {
+            this.address = address;
+        }
+
+        public String getPlaceName() {
+            return placeName;
+        }
+
+        public void setPlaceName(String placeName) {
+            this.placeName = placeName;
+        }
+
+        public String getCampusZone() {
+            return campusZone;
+        }
+
+        public void setCampusZone(String campusZone) {
+            this.campusZone = campusZone;
+        }
     }
 
     public static class TransportSegment {
@@ -118,7 +152,8 @@ public class Trip {
         @Field("sub_duration")
         private int subDuration;
 
-        public TransportSegment() {}
+        public TransportSegment() {
+        }
 
         public TransportSegment(String mode, double subDistance, int subDuration) {
             this.mode = mode;
@@ -126,67 +161,182 @@ public class Trip {
             this.subDuration = subDuration;
         }
 
-        public String getMode() { return mode; }
-        public void setMode(String mode) { this.mode = mode; }
-        public double getSubDistance() { return subDistance; }
-        public void setSubDistance(double subDistance) { this.subDistance = subDistance; }
-        public int getSubDuration() { return subDuration; }
-        public void setSubDuration(int subDuration) { this.subDuration = subDuration; }
+        public String getMode() {
+            return mode;
+        }
+
+        public void setMode(String mode) {
+            this.mode = mode;
+        }
+
+        public double getSubDistance() {
+            return subDistance;
+        }
+
+        public void setSubDistance(double subDistance) {
+            this.subDistance = subDistance;
+        }
+
+        public int getSubDuration() {
+            return subDuration;
+        }
+
+        public void setSubDuration(int subDuration) {
+            this.subDuration = subDuration;
+        }
     }
 
     // --- Getters and Setters ---
 
-    public String getId() { return id; }
-    public void setId(String id) { this.id = id; }
+    public String getId() {
+        return id;
+    }
 
-    public String getUserId() { return userId; }
-    public void setUserId(String userId) { this.userId = userId; }
+    public void setId(String id) {
+        this.id = id;
+    }
 
-    public GeoPoint getStartPoint() { return startPoint; }
-    public void setStartPoint(GeoPoint startPoint) { this.startPoint = startPoint; }
+    public String getUserId() {
+        return userId;
+    }
 
-    public GeoPoint getEndPoint() { return endPoint; }
-    public void setEndPoint(GeoPoint endPoint) { this.endPoint = endPoint; }
+    public void setUserId(String userId) {
+        this.userId = userId;
+    }
 
-    public LocationDetail getStartLocation() { return startLocation; }
-    public void setStartLocation(LocationDetail startLocation) { this.startLocation = startLocation; }
+    public GeoPoint getStartPoint() {
+        return startPoint;
+    }
 
-    public LocationDetail getEndLocation() { return endLocation; }
-    public void setEndLocation(LocationDetail endLocation) { this.endLocation = endLocation; }
+    public void setStartPoint(GeoPoint startPoint) {
+        this.startPoint = startPoint;
+    }
 
-    public LocalDateTime getStartTime() { return startTime; }
-    public void setStartTime(LocalDateTime startTime) { this.startTime = startTime; }
+    public GeoPoint getEndPoint() {
+        return endPoint;
+    }
 
-    public LocalDateTime getEndTime() { return endTime; }
-    public void setEndTime(LocalDateTime endTime) { this.endTime = endTime; }
+    public void setEndPoint(GeoPoint endPoint) {
+        this.endPoint = endPoint;
+    }
 
-    public List<TransportSegment> getTransportModes() { return transportModes; }
-    public void setTransportModes(List<TransportSegment> transportModes) { this.transportModes = transportModes; }
+    public LocationDetail getStartLocation() {
+        return startLocation;
+    }
 
-    public String getDetectedMode() { return detectedMode; }
-    public void setDetectedMode(String detectedMode) { this.detectedMode = detectedMode; }
+    public void setStartLocation(LocationDetail startLocation) {
+        this.startLocation = startLocation;
+    }
 
-    public double getMlConfidence() { return mlConfidence; }
-    public void setMlConfidence(double mlConfidence) { this.mlConfidence = mlConfidence; }
+    public LocationDetail getEndLocation() {
+        return endLocation;
+    }
 
-    public boolean isGreenTrip() { return isGreenTrip; }
-    public void setGreenTrip(boolean greenTrip) { isGreenTrip = greenTrip; }
+    public void setEndLocation(LocationDetail endLocation) {
+        this.endLocation = endLocation;
+    }
 
-    public double getDistance() { return distance; }
-    public void setDistance(double distance) { this.distance = distance; }
+    public LocalDateTime getStartTime() {
+        return startTime;
+    }
 
-    public List<GeoPoint> getPolylinePoints() { return polylinePoints; }
-    public void setPolylinePoints(List<GeoPoint> polylinePoints) { this.polylinePoints = polylinePoints; }
+    public void setStartTime(LocalDateTime startTime) {
+        this.startTime = startTime;
+    }
 
-    public long getCarbonSaved() { return carbonSaved; }
-    public void setCarbonSaved(long carbonSaved) { this.carbonSaved = carbonSaved; }
+    public LocalDateTime getEndTime() {
+        return endTime;
+    }
 
-    public long getPointsGained() { return pointsGained; }
-    public void setPointsGained(long pointsGained) { this.pointsGained = pointsGained; }
+    public void setEndTime(LocalDateTime endTime) {
+        this.endTime = endTime;
+    }
 
-    public String getCarbonStatus() { return carbonStatus; }
-    public void setCarbonStatus(String carbonStatus) { this.carbonStatus = carbonStatus; }
+    public List<TransportSegment> getTransportModes() {
+        return transportModes;
+    }
 
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    public void setTransportModes(List<TransportSegment> transportModes) {
+        this.transportModes = transportModes;
+    }
+
+    public String getDetectedMode() {
+        return detectedMode;
+    }
+
+    public void setDetectedMode(String detectedMode) {
+        this.detectedMode = detectedMode;
+    }
+
+    public double getMlConfidence() {
+        return mlConfidence;
+    }
+
+    public void setMlConfidence(double mlConfidence) {
+        this.mlConfidence = mlConfidence;
+    }
+
+    public boolean isGreenTrip() {
+        return isGreenTrip;
+    }
+
+    public void setGreenTrip(boolean greenTrip) {
+        isGreenTrip = greenTrip;
+    }
+
+    public double getDistance() {
+        return distance;
+    }
+
+    public void setDistance(double distance) {
+        this.distance = distance;
+    }
+
+    public List<GeoPoint> getPolylinePoints() {
+        return polylinePoints;
+    }
+
+    public void setPolylinePoints(List<GeoPoint> polylinePoints) {
+        this.polylinePoints = polylinePoints;
+    }
+
+    public long getCarbonSaved() {
+        return carbonSaved;
+    }
+
+    public void setCarbonSaved(long carbonSaved) {
+        this.carbonSaved = carbonSaved;
+    }
+
+    public long getPointsGained() {
+        return pointsGained;
+    }
+
+    public void setPointsGained(long pointsGained) {
+        this.pointsGained = pointsGained;
+    }
+
+    public String getCarbonStatus() {
+        return carbonStatus;
+    }
+
+    public void setCarbonStatus(String carbonStatus) {
+        this.carbonStatus = carbonStatus;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public String getFaculty() {
+        return faculty;
+    }
+
+    public void setFaculty(String faculty) {
+        this.faculty = faculty;
+    }
 }

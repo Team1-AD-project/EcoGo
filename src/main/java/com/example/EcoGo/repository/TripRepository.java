@@ -24,6 +24,8 @@ public interface TripRepository extends MongoRepository<Trip, String> {
             boolean isGreenTrip,
             String carbonStatus,
             LocalDateTime startTime,
-            LocalDateTime endTime
-    );
+            LocalDateTime endTime);
+
+    // List trips within a time range (for stats aggregation)
+    List<Trip> findByStartTimeBetween(LocalDateTime start, LocalDateTime end);
 }
