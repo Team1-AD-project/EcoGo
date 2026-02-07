@@ -118,7 +118,7 @@ public class CarbonRecordImplementation implements CarbonRecordInterface {
                 .sum();
 
         // 6. Convert to kg and round to 2 decimal places
-        double totalCarbonKg = Math.round((totalCarbonGrams / 1000.0) * 100.0) / 100.0;
+        double totalCarbonKg = Math.round(totalCarbonGrams * 100.0) / 100.0;
 
         return new com.example.EcoGo.dto.FacultyStatsDto.CarbonResponse(faculty, totalCarbonKg);
     }

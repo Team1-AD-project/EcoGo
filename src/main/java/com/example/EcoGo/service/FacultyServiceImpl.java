@@ -109,7 +109,7 @@ public class FacultyServiceImpl {
         // 6. Convert to DTO
         List<FacultyStatsDto.CarbonResponse> response = new ArrayList<>();
         for (Map.Entry<String, Double> entry : facultyCarbonMap.entrySet()) {
-            double roundedValue = Math.round((entry.getValue() / 1000.0) * 100.0) / 100.0;
+            double roundedValue = Math.round(entry.getValue() * 100.0) / 100.0;
             response.add(new FacultyStatsDto.CarbonResponse(entry.getKey(), roundedValue));
         }
 
