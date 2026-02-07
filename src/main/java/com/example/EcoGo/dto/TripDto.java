@@ -21,13 +21,13 @@ public class TripDto {
         public String endAddress;
         public String endPlaceName;
         public String endCampusZone;
-        public double distance;                     // 行程总距离(km)
-        public List<TransportSegmentDto> transportModes;  // 各交通段
-        public List<GeoPointDto> polylinePoints;    // 轨迹点数组
-        public String detectedMode;                 // ML识别的主要交通方式
-        public double mlConfidence;                 // ML置信度
-        public boolean isGreenTrip;                 // 是否绿色出行
-        public long carbonSaved;                    // 碳减排量(g)
+        public double distance; // 行程总距离(km)
+        public List<TransportSegmentDto> transportModes; // 各交通段
+        public List<GeoPointDto> polylinePoints; // 轨迹点数组
+        public String detectedMode; // ML识别的主要交通方式
+        public double mlConfidence; // ML置信度
+        public boolean isGreenTrip; // 是否绿色出行
+        public double carbonSaved; // 碳减排量(g) - Changed to double
     }
 
     // === Sub DTOs ===
@@ -62,9 +62,9 @@ public class TripDto {
         public String detectedMode;
         public double mlConfidence;
         public boolean isGreenTrip;
-        public double distance;
+        public double distance;                 // km
         public List<GeoPointDto> polylinePoints;
-        public long carbonSaved;
+        public double carbonSaved;              // kg
         public long pointsGained;
         public String carbonStatus;
         public LocalDateTime createdAt;
@@ -77,8 +77,8 @@ public class TripDto {
         public String startPlaceName;
         public String endPlaceName;
         public String detectedMode;
-        public double distance;
-        public long carbonSaved;
+        public double distance;                 // km
+        public double carbonSaved;              // kg
         public long pointsGained;
         public boolean isGreenTrip;
         public String carbonStatus;

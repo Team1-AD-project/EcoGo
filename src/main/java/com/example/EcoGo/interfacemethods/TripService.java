@@ -45,7 +45,7 @@ public interface TripService {
     List<TripDto.TripSummaryResponse> getAllTrips();
 
     /**
-     * Admin: get trips by user
+     * Admin: get trips by user (full details)
      */
-    List<TripDto.TripSummaryResponse> getTripsByUser(String userId);
+    List<TripDto.TripResponse> getTripsByUser(String userId);
 }

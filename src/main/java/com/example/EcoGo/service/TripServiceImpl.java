@@ -93,7 +93,7 @@ public class TripServiceImpl implements TripService {
             trip.setPolylinePoints(points);
         }
 
-            // Calculate points: carbon取整 * 10, VIP双倍
+        // Calculate points: carbon取整 * 10, VIP双倍
         long basePoints = (long) Math.round(request.carbonSaved) * 10;
 
         // Check if user is VIP and double points switch is enabled
@@ -120,8 +120,10 @@ public class TripServiceImpl implements TripService {
         trip.setCarbonStatus("completed");
 
         // Update user's totalCarbon
+        // Update user's totalCarbon
         if (request.carbonSaved > 0) {
-            user.setTotalCarbon(user.getTotalCarbon() + (long) request.carbonSaved);
+            double newTotal = user.getTotalCarbon() + request.carbonSaved;
+            user.setTotalCarbon(Math.round(newTotal * 100.0) / 100.0);
             userRepository.save(user);
         }
 
@@ -180,9 +182,9 @@ public class TripServiceImpl implements TripService {
     }
 
     @Override
-    public List<TripDto.TripSummaryResponse> getTripsByUser(String userId) {
+    public List<TripDto.TripResponse> getTripsByUser(String userId) {
         return tripRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
-                .map(this::convertToSummary)
+                .map(this::convertToResponse)
                 .collect(Collectors.toList());
     }
 
@@ -197,8 +199,8 @@ public class TripServiceImpl implements TripService {
         resp.detectedMode = trip.getDetectedMode();
         resp.mlConfidence = trip.getMlConfidence();
         resp.isGreenTrip = trip.isGreenTrip();
-        resp.distance = trip.getDistance();
-        resp.carbonSaved = trip.getCarbonSaved();
+        resp.distance = trip.getDistance();                            // km
+        resp.carbonSaved = trip.getCarbonSaved() / 1000.0;             // g -> kg
         resp.pointsGained = trip.getPointsGained();
         resp.carbonStatus = trip.getCarbonStatus();
         resp.createdAt = trip.getCreatedAt();
@@ -255,8 +257,8 @@ public class TripServiceImpl implements TripService {
         resp.id = trip.getId();
         resp.userId = trip.getUserId();
         resp.detectedMode = trip.getDetectedMode();
-        resp.distance = trip.getDistance();
-        resp.carbonSaved = trip.getCarbonSaved();
+        resp.distance = trip.getDistance();                            // km
+        resp.carbonSaved = trip.getCarbonSaved() / 1000.0;             // g -> kg
         resp.pointsGained = trip.getPointsGained();
         resp.isGreenTrip = trip.isGreenTrip();
         resp.carbonStatus = trip.getCarbonStatus();

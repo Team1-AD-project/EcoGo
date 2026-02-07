@@ -66,8 +66,9 @@ public class PointsServiceImpl implements PointsService {
         // 累计碳减排量（trip 来源时，points / 10 = 碳减排克数）
         boolean isTripSource = "trip".equalsIgnoreCase(source);
         if (points > 0 && isTripSource) {
-            long carbonSaved = points / 10;
-            user.setTotalCarbon(user.getTotalCarbon() + carbonSaved);
+            double carbonSaved = points / 10.0;
+            double newTotal = user.getTotalCarbon() + carbonSaved;
+            user.setTotalCarbon(Math.round(newTotal * 100.0) / 100.0);
         }
 
         userRepository.save(user);
@@ -301,25 +302,21 @@ public class PointsServiceImpl implements PointsService {
     }
 
     @Override
-    public long getFacultyTotalPoints(String userId) {
-        // 1. Get current user
+    public com.example.EcoGo.dto.FacultyStatsDto.PointsResponse getFacultyTotalPoints(String userId) {
         User user = userRepository.findByUserid(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         String faculty = user.getFaculty();
+        // If faculty is null/empty, we can return 0 or empty string
         if (faculty == null || faculty.isEmpty()) {
-            return 0;
+            return new com.example.EcoGo.dto.FacultyStatsDto.PointsResponse("", 0L);
         }
 
-        // 2. Find all users in the same faculty
         List<User> facultyUsers = userRepository.findByFaculty(faculty);
-        if (facultyUsers.isEmpty()) {
-            return 0;
-        }
-
-        // 3. Sum totalPoints from User entities directly
-        return facultyUsers.stream()
+        long totalPoints = facultyUsers.stream()
                 .mapToLong(User::getTotalPoints)
                 .sum();
+
+        return new com.example.EcoGo.dto.FacultyStatsDto.PointsResponse(faculty, totalPoints);
     }
 }
