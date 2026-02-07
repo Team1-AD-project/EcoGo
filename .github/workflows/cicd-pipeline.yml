@@ -48,11 +48,66 @@ jobs:
             target/site/checkstyle/
           if-no-files-found: warn
 
-  # Stage 2: SAST (Static Application Security Testing)
+  # Stage 2: Unit Tests (JUnit 5)
+  unit-tests:
+    runs-on: ubuntu-latest
+    name: Unit Tests (JUnit)
+    needs: lint
+    services:
+      mongodb:
+        image: mongo:latest
+        options: >-
+          --health-cmd mongosh
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 27017:27017
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Run Unit Tests
+        run: mvn clean test
+        env:
+          SPRING_DATA_MONGODB_URI: mongodb://localhost:27017/ecogo
+
+      - name: Generate Test Report Summary
+        if: always()
+        run: |
+          echo "=== Unit Test Summary ==="
+          if [ -d target/surefire-reports ]; then
+            TOTAL=$(find target/surefire-reports -name "TEST-*.xml" | wc -l)
+            PASSED=$(grep -l 'failures="0" errors="0"' target/surefire-reports/TEST-*.xml 2>/dev/null | wc -l)
+            FAILED=$((TOTAL - PASSED))
+            echo "Total test suites: $TOTAL"
+            echo "Passed: $PASSED"
+            echo "Failed: $FAILED"
+          else
+            echo "No test reports found"
+          fi
+          echo "========================="
+
+      - name: Upload Unit Test Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-reports
+          path: |
+            target/surefire-reports/
+          if-no-files-found: warn
+
+  # Stage 3: SAST (Static Application Security Testing)
   sast:
     runs-on: ubuntu-latest
     name: SAST Analysis
-    needs: lint
+    needs: unit-tests
     steps:
       - uses: actions/checkout@v4
         with:
@@ -74,12 +129,30 @@ jobs:
         continue-on-error: true
 
       - name: Run OWASP Dependency Check
-        run: mvn dependency-check:check -DskipTests || echo "Dependency check completed with warnings"
+        run: |
+          EXTRA_ARGS=""
+          if [ -n "$NVD_API_KEY" ]; then
+            echo "NVD API Key detected, using it for vulnerability database."
+            EXTRA_ARGS="-DnvdApiKey=$NVD_API_KEY"
+          else
+            echo "WARNING: NVD_API_KEY not set. Using OSS Index only (no NVD data)."
+            EXTRA_ARGS="-DnvdDisabled=true"
+          fi
+          mvn dependency-check:check -DskipTests $EXTRA_ARGS 2>&1 | tee dependency-check.log || echo "Dependency check completed with warnings"
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
         continue-on-error: true
 
-      - name: SAST Summary
+      - name: Verify SAST Report Files
         if: always()
-        run: echo "SAST scans completed. Check artifacts for detailed reports."
+        run: |
+          echo "=== SAST Report Verification ==="
+          [ -f target/spotbugsXml.xml ] && echo "✓ SpotBugs XML found" || echo "✗ SpotBugs XML missing"
+          [ -f target/spotbugs.html ] && echo "✓ SpotBugs HTML found" || echo "✗ SpotBugs HTML missing"
+          [ -f target/dependency-check-report.html ] && echo "✓ Dependency-Check HTML found" || echo "✗ Dependency-Check HTML missing"
+          [ -f target/dependency-check-report.json ] && echo "✓ Dependency-Check JSON found" || echo "✗ Dependency-Check JSON missing"
+          [ -f target/dependency-check-report.xml ] && echo "✓ Dependency-Check XML found" || echo "✗ Dependency-Check XML missing"
+          echo "================================="
 
       - name: Upload SAST Reports
         if: always()
@@ -92,6 +165,7 @@ jobs:
             target/dependency-check-report.html
             target/dependency-check-report.xml
             target/dependency-check-report.json
+            dependency-check.log
           if-no-files-found: warn
 
   # Stage 3: Build Application
@@ -154,7 +228,7 @@ jobs:
           image-ref: 'team1-ad-project/ecogo:scan'
           format: 'sarif'
           output: 'trivy-results.sarif'
-          severity: 'CRITICAL,HIGH'
+          severity: 'CRITICAL,HIGH,MEDIUM,LOW'
         continue-on-error: true
       
       - name: Upload Trivy Results to GitHub Security
@@ -189,6 +263,14 @@ jobs:
           path: |
             trivy-results.txt
           if-no-files-found: warn
+
+      - name: Verify Trivy Evidence
+        if: always()
+        run: |
+          echo "=== Trivy Evidence Verification ==="
+          [ -f trivy-results.sarif ] && echo "✓ SARIF report ($(wc -c < trivy-results.sarif) bytes)" || echo "✗ SARIF missing"
+          [ -f trivy-results.txt ] && echo "✓ Table report ($(wc -c < trivy-results.txt) bytes)" || echo "✗ Table missing"
+          echo "===================================="
 
   # Stage 5: Code Coverage Gate
   coverage-check:
@@ -228,13 +310,23 @@ jobs:
       - name: Check Coverage Thresholds
         run: mvn jacoco:check || echo "Coverage below threshold - this is informational only"
         continue-on-error: true
+
+      - name: Verify Coverage Report Files
+        if: always()
+        run: |
+          echo "=== Coverage Report Verification ==="
+          [ -f target/site/jacoco/jacoco.csv ] && echo "✓ jacoco.csv found" || echo "✗ jacoco.csv missing"
+          [ -f target/site/jacoco/jacoco.xml ] && echo "✓ jacoco.xml found" || echo "✗ jacoco.xml missing"
+          [ -f target/site/jacoco/index.html ] && echo "✓ index.html found" || echo "✗ index.html missing"
+          echo "==================================="
       
       - name: Upload Coverage Reports
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: coverage-reports
-          path: target/site/jacoco/
+          path: |
+            target/site/jacoco/
           if-no-files-found: warn
 
   # Stage 6: Code Quality Analysis (SonarQube)
@@ -742,51 +834,75 @@ jobs:
             exit 1
           }
 
+      - name: Prepare ZAP Output Directory
+        run: |
+          mkdir -p dast-report
+          chmod 777 dast-report
+
       - name: Run OWASP ZAP Baseline Scan
         run: |
           echo "Starting OWASP ZAP baseline scan..."
-          mkdir -p dast-report
-          docker run --network="host" -v $(pwd):/zap/wrk/:rw \
-            owasp/zap2docker-stable zap-baseline.py \
+          docker run --rm --network="host" \
+            -v $(pwd)/dast-report:/zap/wrk:rw \
+            ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
             -t http://localhost:8090 \
-            -g gen.conf \
-            -r dast-report/zap-report.html \
-            -w dast-report/zap-report.md \
-            -J dast-report/zap-report.json \
-            -x dast-report/zap-report.xml || echo "ZAP scan completed with findings"
+            -I \
+            -r zap-report.html \
+            -w zap-report.md \
+            -J zap-report.json \
+            -x zap-report.xml \
+            2>&1 | tee dast-report/zap-scan.log || echo "ZAP baseline scan completed"
         continue-on-error: true
 
-      - name: Run Full ZAP Scan with Config
+      - name: Run OWASP ZAP Full Scan
         run: |
-          echo "Starting full OWASP ZAP scan with configuration..."
-          mkdir -p dast-report
-          docker run --network="host" -v $(pwd):/zap/wrk/:rw \
-            owasp/zap2docker-stable zap-full-scan.py \
+          echo "Starting OWASP ZAP full scan..."
+          docker run --rm --network="host" \
+            -v $(pwd)/dast-report:/zap/wrk:rw \
+            ghcr.io/zaproxy/zaproxy:stable zap-full-scan.py \
             -t http://localhost:8090 \
-            -c .zap/zap-config.yaml \
-            -r dast-report/zap-report-full.html \
-            -w dast-report/zap-report-full.md \
-            -J dast-report/zap-report-full.json \
-            -x dast-report/zap-report-full.xml \
-            -z "-config api.addrs.addr.name=.* -config api.addrs.addr.regex=true" || echo "Full ZAP scan completed"
+            -I \
+            -m 5 \
+            -r zap-report-full.html \
+            -w zap-report-full.md \
+            -J zap-report-full.json \
+            -x zap-report-full.xml \
+            2>&1 | tee dast-report/zap-full-scan.log || echo "ZAP full scan completed"
         continue-on-error: true
 
-      - name: Verify ZAP Reports Generated
+      - name: Verify ZAP Reports
+        if: always()
         run: |
-          echo "Checking for generated ZAP reports..."
-          ls -la dast-report || true
-          
-          # Create fallback reports if ZAP scan failed to generate them
-          if [ ! -f "dast-report/zap-report.html" ]; then
-            echo "<html><body><h1>OWASP ZAP Scan Report</h1><p>Scan completed but detailed report was not generated. Check workflow logs for details.</p></body></html>" > dast-report/zap-report.html
+          echo "=== ZAP Report Verification ==="
+          for f in zap-report.html zap-report.json zap-report.xml zap-report.md \
+                   zap-report-full.html zap-report-full.json zap-report-full.xml zap-report-full.md; do
+            if [ -f "dast-report/$f" ] && [ -s "dast-report/$f" ]; then
+              echo "✓ $f ($(wc -c < dast-report/$f) bytes)"
+            else
+              echo "✗ $f missing or empty"
+            fi
+          done
+
+          # Create fallbacks only if baseline reports are all missing
+          if [ ! -f "dast-report/zap-report.json" ] || [ ! -s "dast-report/zap-report.json" ]; then
+            echo "Creating fallback reports (see zap-scan.log for scan details)..."
+            echo '{"@version":"0.0.0","site":[],"_note":"Fallback - ZAP did not produce reports, see zap-scan.log"}' > dast-report/zap-report.json
           fi
-          
-          if [ ! -f "dast-report/zap-report.md" ]; then
-            echo "# OWASP ZAP Scan Report\n\nScan completed but detailed report was not generated. Check workflow logs for details." > dast-report/zap-report.md
+          if [ ! -f "dast-report/zap-report.xml" ] || [ ! -s "dast-report/zap-report.xml" ]; then
+            echo '<?xml version="1.0"?><OWASPZAPReport version="0.0.0"><site></site></OWASPZAPReport>' > dast-report/zap-report.xml
           fi
-          
-          echo "Final report files:"
-          ls -lh dast-report/* 2>/dev/null || echo "Using fallback reports"
+          if [ ! -f "dast-report/zap-report.html" ] || [ ! -s "dast-report/zap-report.html" ]; then
+            echo "<html><body><h1>OWASP ZAP - Fallback</h1><p>ZAP did not produce reports. See zap-scan.log in artifacts.</p></body></html>" > dast-report/zap-report.html
+          fi
+          if [ ! -f "dast-report/zap-report.md" ] || [ ! -s "dast-report/zap-report.md" ]; then
+            echo "# OWASP ZAP - Fallback Report" > dast-report/zap-report.md
+            echo "" >> dast-report/zap-report.md
+            echo "ZAP did not produce reports. See zap-scan.log in artifacts." >> dast-report/zap-report.md
+          fi
+
+          echo ""
+          echo "=== Final dast-report contents ==="
+          ls -lh dast-report/
 
       - name: Upload DAST Report
         if: always()
@@ -851,13 +967,35 @@ jobs:
   pipeline-status:
     runs-on: ubuntu-latest
     name: Pipeline Status
-    needs: [lint, sast, build, container-security, coverage-check, sonarqube]
+    needs: [lint, unit-tests, sast, build, container-security, coverage-check, sonarqube]
     if: always()
     steps:
       - name: Pipeline Summary
         run: |
-          echo "=== EcoGo CI/CD Pipeline Summary ==="
-          echo "Workflow: ${{ github.workflow }}"
-          echo "Commit: ${{ github.sha }}"
-          echo "Branch: ${{ github.ref }}"
+          echo "========================================"
+          echo "  EcoGo CI/CD Pipeline Summary"
+          echo "========================================"
+          echo "Workflow : ${{ github.workflow }}"
+          echo "Commit   : ${{ github.sha }}"
+          echo "Branch   : ${{ github.ref }}"
+          echo ""
+          echo "Stage Results:"
+          echo "  Lint (Checkstyle)       : ${{ needs.lint.result }}"
+          echo "  Unit Tests (JUnit)      : ${{ needs.unit-tests.result }}"
+          echo "  SAST (SpotBugs + DC)    : ${{ needs.sast.result }}"
+          echo "  Build                   : ${{ needs.build.result }}"
+          echo "  Container Security      : ${{ needs.container-security.result }}"
+          echo "  Coverage (JaCoCo)       : ${{ needs.coverage-check.result }}"
+          echo "  SonarQube               : ${{ needs.sonarqube.result }}"
+          echo ""
+          echo "Evidence artifacts uploaded:"
+          echo "  - lint-reports (Checkstyle HTML/XML)"
+          echo "  - unit-test-reports (Surefire XML/TXT)"
+          echo "  - sast-reports (SpotBugs XML + Dependency-Check HTML/JSON/XML)"
+          echo "  - trivy-results (SARIF)"
+          echo "  - trivy-results-table (text)"
+          echo "  - coverage-reports (JaCoCo CSV/XML/HTML)"
+          echo "  - sonarqube-evidence (report-task.txt)"
+          echo "  - jmeter-report (HTML dashboard)"
+          echo "  - dast-report (ZAP HTML/JSON/XML/MD)"
           echo "========================================"
