@@ -58,7 +58,8 @@ public class PointsServiceImpl implements PointsService {
                 || "mission".equalsIgnoreCase(source)
                 || "task".equalsIgnoreCase(source)
                 || "admin".equalsIgnoreCase(source)
-                || "leaderboard".equalsIgnoreCase(source); // Admin comps usually count
+                || "leaderboard".equalsIgnoreCase(source)
+                || "challenge".equalsIgnoreCase(source);
 
         if (points > 0 && isEarningSource) {
             user.setTotalPoints(user.getTotalPoints() + points);

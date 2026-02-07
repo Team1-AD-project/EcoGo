@@ -28,4 +28,7 @@ public interface ChallengeInterface {
 
     // 获取单个用户在某挑战的进度
     UserChallengeProgressDTO getUserChallengeProgress(String challengeId, String userId);
+
+    // 领取挑战完成奖励
+    UserChallengeProgressDTO claimChallengeReward(String challengeId, String userId);
 }

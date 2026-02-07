@@ -204,4 +204,16 @@ public class ChallengeController {
         logger.info("[Mobile] Getting challenge {} progress for user {}", id, userId);
         return ResponseMessage.success(challengeService.getUserChallengeProgress(id, userId));
     }
+
+    /**
+     * 领取挑战完成奖励
+     * POST /api/v1/mobile/challenges/{id}/claim-reward
+     */
+    @PostMapping("/mobile/challenges/{id}/claim-reward")
+    public ResponseMessage<UserChallengeProgressDTO> claimMobileChallengeReward(
+            @PathVariable String id,
+            @RequestParam String userId) {
+        logger.info("[Mobile] User {} claiming reward for challenge {}", userId, id);
+        return ResponseMessage.success(challengeService.claimChallengeReward(id, userId));
+    }
 }

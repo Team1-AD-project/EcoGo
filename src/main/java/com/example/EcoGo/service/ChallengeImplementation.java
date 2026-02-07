@@ -41,6 +41,9 @@ public class ChallengeImplementation implements ChallengeInterface {
     @Autowired
     private MongoTemplate mongoTemplate;
 
+    @Autowired
+    private com.example.EcoGo.interfacemethods.PointsService pointsService;
+
     @Override
     public List<Challenge> getAllChallenges() {
         List<Challenge> challenges = challengeRepository.findAll();
@@ -252,26 +255,60 @@ public class ChallengeImplementation implements ChallengeInterface {
 
         if (target != null && current >= target) {
             dto.setStatus("COMPLETED");
+            // Auto-mark as COMPLETED but do NOT award points yet (user must claim reward)
             if ("IN_PROGRESS".equals(progress.getStatus())) {
                 progress.setStatus("COMPLETED");
                 progress.setCompletedAt(LocalDateTime.now());
                 progress.setUpdatedAt(LocalDateTime.now());
-                progress.setRewardClaimed(true);
+                progress.setRewardClaimed(false);
                 userChallengeProgressRepository.save(progress);
                 dto.setCompletedAt(progress.getCompletedAt());
-                dto.setRewardClaimed(true);
-
-                if (challenge.getReward() != null && challenge.getReward() > 0 && user != null) {
-                    user.setCurrentPoints(user.getCurrentPoints() + challenge.getReward());
-                    user.setTotalPoints(user.getTotalPoints() + challenge.getReward());
-                    userRepository.save(user);
-                }
+                dto.setRewardClaimed(false);
             }
         } else {
             dto.setStatus(progress.getStatus());
         }
 
         return dto;
+    }
+
+    @Override
+    public UserChallengeProgressDTO claimChallengeReward(String challengeId, String userId) {
+        Challenge challenge = challengeRepository.findById(challengeId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.CHALLENGE_NOT_FOUND));
+
+        Query query = new Query(Criteria.where("challenge_id").is(challengeId).and("user_id").is(userId));
+        UserChallengeProgress progress = mongoTemplate.findOne(query, UserChallengeProgress.class);
+        if (progress == null) {
+            throw new BusinessException(ErrorCode.CHALLENGE_NOT_FOUND);
+        }
+
+        if (!"COMPLETED".equals(progress.getStatus())) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "Challenge not completed yet");
+        }
+
+        if (Boolean.TRUE.equals(progress.getRewardClaimed())) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "Reward already claimed");
+        }
+
+        // Award points via PointsService (logs to user_points_logs + updates currentPoints)
+        if (challenge.getReward() != null && challenge.getReward() > 0) {
+            pointsService.adjustPoints(
+                    userId,
+                    challenge.getReward().longValue(),
+                    "challenge",
+                    "Challenge reward: " + challenge.getTitle(),
+                    challengeId,
+                    null
+            );
+        }
+
+        // Mark reward as claimed
+        progress.setRewardClaimed(true);
+        progress.setUpdatedAt(LocalDateTime.now());
+        userChallengeProgressRepository.save(progress);
+
+        return buildProgressDTO(progress, challenge);
     }
 
     /**
