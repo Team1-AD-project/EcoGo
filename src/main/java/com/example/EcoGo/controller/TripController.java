@@ -108,11 +108,11 @@ public class TripController {
     }
 
     /**
-     * Admin: Get trips by user
+     * Admin: Get trips by user (full details)
      * GET /api/v1/web/trips/user/{userid}
      */
     @GetMapping("/api/v1/web/trips/user/{userid}")
-    public ResponseMessage<List<TripDto.TripSummaryResponse>> getTripsByUser(
+    public ResponseMessage<List<TripDto.TripResponse>> getTripsByUser(
             @PathVariable String userid) {
         return ResponseMessage.success(tripService.getTripsByUser(userid));
     }

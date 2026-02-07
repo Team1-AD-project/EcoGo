@@ -246,22 +246,7 @@ data class CurrentTripResponse(
 // 通用响应包装
 // ============================================================
 
-/**
- * API响应包装（如果后端有统一的响应格式）
- */
-data class ApiResponse<T>(
-    @SerializedName("code")
-    val code: Int,
-
-    @SerializedName("message")
-    val message: String,
-
-    @SerializedName("data")
-    val data: T? = null,
-
-    @SerializedName("success")
-    val success: Boolean = true
-)
+// ApiResponse 已在 ApiResponse.kt 中定义
 
 /**
  * API错误响应

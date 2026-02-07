@@ -11,4 +11,10 @@ data class ApiResponse<T>(
 ) {
     val isSuccess: Boolean
         get() = code == 200
+
+    // 兼容别名
+    val success: Boolean
+        get() = isSuccess
+    val message: String
+        get() = msg
 }
