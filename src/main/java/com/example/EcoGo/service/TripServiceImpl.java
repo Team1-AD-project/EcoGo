@@ -93,7 +93,7 @@ public class TripServiceImpl implements TripService {
             trip.setPolylinePoints(points);
         }
 
-            // Calculate points: carbon取整 * 10, VIP双倍
+        // Calculate points: carbon取整 * 10, VIP双倍
         long basePoints = (long) Math.round(request.carbonSaved) * 10;
 
         // Check if user is VIP and double points switch is enabled
@@ -121,7 +121,7 @@ public class TripServiceImpl implements TripService {
 
         // Update user's totalCarbon
         if (request.carbonSaved > 0) {
-            user.setTotalCarbon(user.getTotalCarbon() + (long) request.carbonSaved);
+            user.setTotalCarbon(user.getTotalCarbon() + request.carbonSaved);
             userRepository.save(user);
         }
 
