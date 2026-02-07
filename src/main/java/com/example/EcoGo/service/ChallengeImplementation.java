@@ -5,20 +5,24 @@ import com.example.EcoGo.exception.BusinessException;
 import com.example.EcoGo.exception.errorcode.ErrorCode;
 import com.example.EcoGo.interfacemethods.ChallengeInterface;
 import com.example.EcoGo.model.Challenge;
-import com.example.EcoGo.model.Trip;
 import com.example.EcoGo.model.User;
 import com.example.EcoGo.model.UserChallengeProgress;
 import com.example.EcoGo.repository.ChallengeRepository;
-import com.example.EcoGo.repository.TripRepository;
 import com.example.EcoGo.repository.UserChallengeProgressRepository;
 import com.example.EcoGo.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -32,17 +36,17 @@ public class ChallengeImplementation implements ChallengeInterface {
     private UserChallengeProgressRepository userChallengeProgressRepository;
 
     @Autowired
-    private TripRepository tripRepository;
+    private UserRepository userRepository;
 
     @Autowired
-    private UserRepository userRepository;
+    private MongoTemplate mongoTemplate;
 
     @Override
     public List<Challenge> getAllChallenges() {
         List<Challenge> challenges = challengeRepository.findAll();
-        // 实时计算每个挑战的参与人数
         for (Challenge challenge : challenges) {
-            long participantCount = userChallengeProgressRepository.countByChallengeId(challenge.getId());
+            Query countQuery = new Query(Criteria.where("challenge_id").is(challenge.getId()));
+            long participantCount = mongoTemplate.count(countQuery, UserChallengeProgress.class);
             challenge.setParticipants((int) participantCount);
         }
         return challenges;
@@ -60,7 +64,7 @@ public class ChallengeImplementation implements ChallengeInterface {
         challenge.setUpdatedAt(LocalDateTime.now());
         if (challenge.getStatus() == null) challenge.setStatus("ACTIVE");
         if (challenge.getParticipants() == null) challenge.setParticipants(0);
-        if (challenge.getIcon() == null) challenge.setIcon("🏆");
+        if (challenge.getIcon() == null) challenge.setIcon("\uD83C\uDFC6");
         return challengeRepository.save(challenge);
     }
 
@@ -89,8 +93,8 @@ public class ChallengeImplementation implements ChallengeInterface {
         if (!challengeRepository.existsById(id)) {
             throw new BusinessException(ErrorCode.CHALLENGE_NOT_FOUND);
         }
-        // 同时删除相关的用户参与记录
-        userChallengeProgressRepository.deleteByChallengeId(id);
+        Query deleteQuery = new Query(Criteria.where("challenge_id").is(id));
+        mongoTemplate.remove(deleteQuery, UserChallengeProgress.class);
         challengeRepository.deleteById(id);
     }
 
@@ -106,13 +110,15 @@ public class ChallengeImplementation implements ChallengeInterface {
 
     @Override
     public List<Challenge> getChallengesByUserId(String userId) {
-        // 从UserChallengeProgress获取用户参与的挑战ID列表
-        List<UserChallengeProgress> userProgress = userChallengeProgressRepository.findByUserId(userId);
+        Query query = new Query(Criteria.where("user_id").is(userId));
+        List<UserChallengeProgress> userProgress = mongoTemplate.find(query, UserChallengeProgress.class);
         List<String> challengeIds = userProgress.stream()
                 .map(UserChallengeProgress::getChallengeId)
                 .collect(Collectors.toList());
 
-        // 获取对应的挑战
+        if (challengeIds.isEmpty()) {
+            return new ArrayList<>();
+        }
         return challengeRepository.findAllById(challengeIds);
     }
 
@@ -121,24 +127,23 @@ public class ChallengeImplementation implements ChallengeInterface {
         Challenge challenge = challengeRepository.findById(challengeId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHALLENGE_NOT_FOUND));
 
-        // 检查挑战是否有效
         if (!"ACTIVE".equals(challenge.getStatus())) {
             throw new BusinessException(ErrorCode.CHALLENGE_NOT_ACTIVE);
         }
 
-        // 检查是否已过期
         if (challenge.getEndTime() != null && challenge.getEndTime().isBefore(LocalDateTime.now())) {
             challenge.setStatus("EXPIRED");
             challengeRepository.save(challenge);
             throw new BusinessException(ErrorCode.CHALLENGE_EXPIRED);
         }
 
-        // 检查是否已参加
-        if (userChallengeProgressRepository.existsByChallengeIdAndUserId(challengeId, userId)) {
+        // Use MongoTemplate to check if user already joined
+        Query existsQuery = new Query(Criteria.where("challenge_id").is(challengeId).and("user_id").is(userId));
+        boolean alreadyJoined = mongoTemplate.exists(existsQuery, UserChallengeProgress.class);
+        if (alreadyJoined) {
             throw new BusinessException(ErrorCode.CHALLENGE_ALREADY_JOINED);
         }
 
-        // 创建用户参与记录
         UserChallengeProgress progress = new UserChallengeProgress();
         progress.setChallengeId(challengeId);
         progress.setUserId(userId);
@@ -148,7 +153,6 @@ public class ChallengeImplementation implements ChallengeInterface {
 
         UserChallengeProgress saved = userChallengeProgressRepository.save(progress);
 
-        // 更新挑战参与人数
         challenge.setParticipants(challenge.getParticipants() + 1);
         challenge.setUpdatedAt(LocalDateTime.now());
         challengeRepository.save(challenge);
@@ -161,14 +165,12 @@ public class ChallengeImplementation implements ChallengeInterface {
         Challenge challenge = challengeRepository.findById(challengeId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHALLENGE_NOT_FOUND));
 
-        UserChallengeProgress progress = userChallengeProgressRepository
-                .findByChallengeIdAndUserId(challengeId, userId)
-                .orElse(null);
+        Query query = new Query(Criteria.where("challenge_id").is(challengeId).and("user_id").is(userId));
+        UserChallengeProgress progress = mongoTemplate.findOne(query, UserChallengeProgress.class);
 
         if (progress != null) {
-            userChallengeProgressRepository.delete(progress);
+            mongoTemplate.remove(progress);
 
-            // 更新挑战参与人数
             challenge.setParticipants(Math.max(0, challenge.getParticipants() - 1));
             challenge.setUpdatedAt(LocalDateTime.now());
             challengeRepository.save(challenge);
@@ -180,7 +182,8 @@ public class ChallengeImplementation implements ChallengeInterface {
         Challenge challenge = challengeRepository.findById(challengeId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHALLENGE_NOT_FOUND));
 
-        List<UserChallengeProgress> participants = userChallengeProgressRepository.findByChallengeId(challengeId);
+        Query query = new Query(Criteria.where("challenge_id").is(challengeId));
+        List<UserChallengeProgress> participants = mongoTemplate.find(query, UserChallengeProgress.class);
         List<UserChallengeProgressDTO> result = new ArrayList<>();
 
         for (UserChallengeProgress participant : participants) {
@@ -196,15 +199,18 @@ public class ChallengeImplementation implements ChallengeInterface {
         Challenge challenge = challengeRepository.findById(challengeId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.CHALLENGE_NOT_FOUND));
 
-        UserChallengeProgress progress = userChallengeProgressRepository
-                .findByChallengeIdAndUserId(challengeId, userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.CHALLENGE_NOT_FOUND));
+        // Use MongoTemplate with raw field names to find user progress
+        Query query = new Query(Criteria.where("challenge_id").is(challengeId).and("user_id").is(userId));
+        UserChallengeProgress progress = mongoTemplate.findOne(query, UserChallengeProgress.class);
+        if (progress == null) {
+            throw new BusinessException(ErrorCode.CHALLENGE_NOT_FOUND);
+        }
 
         return buildProgressDTO(progress, challenge);
     }
 
     /**
-     * 构建用户挑战进度DTO，包含从Trip表计算的实时进度
+     * Build user challenge progress DTO with real-time progress from Trip collection
      */
     private UserChallengeProgressDTO buildProgressDTO(UserChallengeProgress progress, Challenge challenge) {
         UserChallengeProgressDTO dto = new UserChallengeProgressDTO();
@@ -216,7 +222,6 @@ public class ChallengeImplementation implements ChallengeInterface {
         dto.setRewardClaimed(progress.getRewardClaimed());
         dto.setTarget(challenge.getTarget());
 
-        // 查询用户信息
         User user = userRepository.findByUserid(progress.getUserId()).orElse(null);
         if (user != null) {
             dto.setUserNickname(user.getNickname());
@@ -228,7 +233,6 @@ public class ChallengeImplementation implements ChallengeInterface {
             dto.setUserAvatar(null);
         }
 
-        // 从Trip表计算进度（使用当月范围）
         LocalDateTime monthStart = LocalDateTime.now().withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
         LocalDateTime monthEnd = monthStart.plusMonths(1).minusNanos(1);
         Double current = calculateProgressFromTrips(
@@ -239,7 +243,6 @@ public class ChallengeImplementation implements ChallengeInterface {
         );
         dto.setCurrent(current);
 
-        // 计算进度百分比
         Double target = challenge.getTarget();
         if (target != null && target > 0) {
             dto.setProgressPercent(Math.min(100.0, (current / target) * 100));
@@ -247,10 +250,8 @@ public class ChallengeImplementation implements ChallengeInterface {
             dto.setProgressPercent(0.0);
         }
 
-        // 判断是否已完成
         if (target != null && current >= target) {
             dto.setStatus("COMPLETED");
-            // 如果之前是IN_PROGRESS，更新为COMPLETED并发放奖励
             if ("IN_PROGRESS".equals(progress.getStatus())) {
                 progress.setStatus("COMPLETED");
                 progress.setCompletedAt(LocalDateTime.now());
@@ -260,7 +261,6 @@ public class ChallengeImplementation implements ChallengeInterface {
                 dto.setCompletedAt(progress.getCompletedAt());
                 dto.setRewardClaimed(true);
 
-                // 发放积分奖励
                 if (challenge.getReward() != null && challenge.getReward() > 0 && user != null) {
                     user.setCurrentPoints(user.getCurrentPoints() + challenge.getReward());
                     user.setTotalPoints(user.getTotalPoints() + challenge.getReward());
@@ -275,36 +275,47 @@ public class ChallengeImplementation implements ChallengeInterface {
     }
 
     /**
-     * 从Trip表计算用户在指定时间范围内的进度
-     *
-     * @param userId    用户ID
-     * @param type      挑战类型
-     * @param startTime 开始时间
-     * @param endTime   结束时间
-     * @return 进度值
+     * Calculate user progress from Trip collection using MongoTemplate aggregation.
+     * Uses raw MongoDB field names to avoid @Field annotation mapping issues.
      */
     private Double calculateProgressFromTrips(String userId, String type, LocalDateTime startTime, LocalDateTime endTime) {
-        // 查询用户在时间范围内的绿色出行记录
-        List<Trip> trips = tripRepository.findByUserIdAndIsGreenTripAndCarbonStatusAndStartTimeBetween(
-                userId, true, "completed", startTime, endTime
-        );
+        Criteria criteria = Criteria.where("user_id").is(userId)
+                .and("is_green_trip").is(true)
+                .and("carbon_status").is("completed")
+                .and("start_time").gte(startTime).lt(endTime);
 
         switch (type) {
-            case "GREEN_TRIPS_COUNT":
-                // 绿色出行次数
-                return (double) trips.size();
+            case "GREEN_TRIPS_COUNT": {
+                Query query = new Query(criteria);
+                long count = mongoTemplate.count(query, "trips");
+                return (double) count;
+            }
 
-            case "GREEN_TRIPS_DISTANCE":
-                // 绿色出行总距离（米）
-                return trips.stream()
-                        .mapToDouble(Trip::getDistance)
-                        .sum();
+            case "GREEN_TRIPS_DISTANCE": {
+                Aggregation aggregation = Aggregation.newAggregation(
+                        Aggregation.match(criteria),
+                        Aggregation.group().sum("distance").as("total")
+                );
+                AggregationResults<Map> results = mongoTemplate.aggregate(aggregation, "trips", Map.class);
+                Map result = results.getUniqueMappedResult();
+                if (result != null && result.get("total") != null) {
+                    return ((Number) result.get("total")).doubleValue();
+                }
+                return 0.0;
+            }
 
-            case "CARBON_SAVED":
-                // 碳排放减少量（克）
-                return trips.stream()
-                        .mapToDouble(Trip::getCarbonSaved)
-                        .sum();
+            case "CARBON_SAVED": {
+                Aggregation aggregation = Aggregation.newAggregation(
+                        Aggregation.match(criteria),
+                        Aggregation.group().sum("carbon_saved").as("total")
+                );
+                AggregationResults<Map> results = mongoTemplate.aggregate(aggregation, "trips", Map.class);
+                Map result = results.getUniqueMappedResult();
+                if (result != null && result.get("total") != null) {
+                    return ((Number) result.get("total")).doubleValue();
+                }
+                return 0.0;
+            }
 
             default:
                 return 0.0;
