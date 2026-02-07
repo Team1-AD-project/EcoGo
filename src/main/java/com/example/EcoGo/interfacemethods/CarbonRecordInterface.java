@@ -21,5 +21,5 @@ public interface CarbonRecordInterface {
     /**
      * Get total carbon footprint of all users in the same faculty
      */
-    long getFacultyTotalCarbon(String userId);
+    com.example.EcoGo.dto.FacultyStatsDto.CarbonResponse getFacultyTotalCarbon(String userId);
 }

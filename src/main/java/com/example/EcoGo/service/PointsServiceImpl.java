@@ -301,25 +301,21 @@ public class PointsServiceImpl implements PointsService {
     }
 
     @Override
-    public long getFacultyTotalPoints(String userId) {
-        // 1. Get current user
+    public com.example.EcoGo.dto.FacultyStatsDto.PointsResponse getFacultyTotalPoints(String userId) {
         User user = userRepository.findByUserid(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         String faculty = user.getFaculty();
+        // If faculty is null/empty, we can return 0 or empty string
         if (faculty == null || faculty.isEmpty()) {
-            return 0;
+            return new com.example.EcoGo.dto.FacultyStatsDto.PointsResponse("", 0L);
         }
 
-        // 2. Find all users in the same faculty
         List<User> facultyUsers = userRepository.findByFaculty(faculty);
-        if (facultyUsers.isEmpty()) {
-            return 0;
-        }
-
-        // 3. Sum totalPoints from User entities directly
-        return facultyUsers.stream()
+        long totalPoints = facultyUsers.stream()
                 .mapToLong(User::getTotalPoints)
                 .sum();
+
+        return new com.example.EcoGo.dto.FacultyStatsDto.PointsResponse(faculty, totalPoints);
     }
 }

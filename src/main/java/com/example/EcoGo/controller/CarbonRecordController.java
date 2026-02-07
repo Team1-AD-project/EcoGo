@@ -99,7 +99,7 @@ public class CarbonRecordController {
      * GET /api/v1/carbon-records/faculty/total
      */
     @GetMapping("/faculty/total")
-    public ResponseMessage<Long> getFacultyTotalCarbon(
+    public ResponseMessage<com.example.EcoGo.dto.FacultyStatsDto.CarbonResponse> getFacultyTotalCarbon(
             @org.springframework.web.bind.annotation.RequestHeader("Authorization") String authHeader) {
         String token = authHeader.replace("Bearer ", "");
         String userId = jwtUtils.getUserIdFromToken(token);

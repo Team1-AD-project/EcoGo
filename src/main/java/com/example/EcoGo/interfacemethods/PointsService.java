@@ -63,7 +63,11 @@ public interface PointsService {
      * Get total points gained by all members of the user's faculty.
      * Calculated from points logs with changeType='gain'.
      */
-    long getFacultyTotalPoints(String userId);
+    // List<UserPointsLog> getHistory(String userId, int page, int size); --
+    // existing in implementation
+
+    // Stats
+    com.example.EcoGo.dto.FacultyStatsDto.PointsResponse getFacultyTotalPoints(String userId);
 
     // --- Internal Logic (Not exposed directly as API) ---
     void settle(String userId, PointsDto.SettleResult result);

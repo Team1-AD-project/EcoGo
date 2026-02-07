@@ -77,7 +77,7 @@ public class PointsController {
      * GET /api/v1/mobile/points/stats/faculty
      */
     @GetMapping("/api/v1/mobile/points/stats/faculty")
-    public ResponseMessage<Long> getFacultyPoints(
+    public ResponseMessage<com.example.EcoGo.dto.FacultyStatsDto.PointsResponse> getFacultyPoints(
             @RequestHeader("Authorization") String authHeader) {
         String token = authHeader.replace("Bearer ", "");
         String userId = jwtUtils.getUserIdFromToken(token);

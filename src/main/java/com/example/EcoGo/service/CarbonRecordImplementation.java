@@ -85,25 +85,27 @@ public class CarbonRecordImplementation implements CarbonRecordInterface {
     private com.example.EcoGo.repository.UserRepository userRepository;
 
     @Override
-    public long getFacultyTotalCarbon(String userId) {
+    public com.example.EcoGo.dto.FacultyStatsDto.CarbonResponse getFacultyTotalCarbon(String userId) {
         // 1. Get current user
         com.example.EcoGo.model.User user = userRepository.findByUserid(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
 
         String faculty = user.getFaculty();
         if (faculty == null || faculty.isEmpty()) {
-            return 0;
+            return new com.example.EcoGo.dto.FacultyStatsDto.CarbonResponse("", 0L);
         }
 
         // 2. Find all users in the same faculty
         List<com.example.EcoGo.model.User> facultyUsers = userRepository.findByFaculty(faculty);
         if (facultyUsers.isEmpty()) {
-            return 0;
+            return new com.example.EcoGo.dto.FacultyStatsDto.CarbonResponse(faculty, 0L);
         }
 
         // 3. Sum totalCarbon from User entities directly
-        return facultyUsers.stream()
+        long totalCarbon = facultyUsers.stream()
                 .mapToLong(com.example.EcoGo.model.User::getTotalCarbon)
                 .sum();
+
+        return new com.example.EcoGo.dto.FacultyStatsDto.CarbonResponse(faculty, totalCarbon);
     }
 }
