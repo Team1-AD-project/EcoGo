@@ -9,24 +9,43 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/v1/statistics")
+@RequestMapping("/api/v1")
 public class StatisticsController {
     private static final Logger logger = LoggerFactory.getLogger(StatisticsController.class);
 
     @Autowired
     private StatisticsInterface statisticsService;
 
-    @GetMapping("/management-analytics")
-    public ResponseMessage<AnalyticsSummaryDto> getManagementAnalytics(
+    // === Web Endpoints (Admin) ===
+
+    @GetMapping("/web/statistics/management-analytics")
+    public ResponseMessage<AnalyticsSummaryDto> getWebManagementAnalytics(
             @RequestParam(defaultValue = "monthly") String timeRange) {
-        logger.info("Fetching management analytics for time range: {}", timeRange);
+        logger.info("[WEB] Fetching management analytics for time range: {}", timeRange);
         AnalyticsSummaryDto summary = statisticsService.getManagementAnalytics(timeRange);
         return ResponseMessage.success(summary);
     }
 
-    @GetMapping("/redemption-volume")
-    public ResponseMessage<Long> getRedemptionVolume() {
-        logger.info("获取奖励兑换量");
+    @GetMapping("/web/statistics/redemption-volume")
+    public ResponseMessage<Long> getWebRedemptionVolume() {
+        logger.info("[WEB] Fetching redemption volume");
+        Long volume = statisticsService.getRedemptionVolume();
+        return ResponseMessage.success(volume);
+    }
+
+    // === Mobile Endpoints ===
+
+    @GetMapping("/mobile/statistics/management-analytics")
+    public ResponseMessage<AnalyticsSummaryDto> getMobileManagementAnalytics(
+            @RequestParam(defaultValue = "monthly") String timeRange) {
+        logger.info("[Mobile] Fetching management analytics for time range: {}", timeRange);
+        AnalyticsSummaryDto summary = statisticsService.getManagementAnalytics(timeRange);
+        return ResponseMessage.success(summary);
+    }
+
+    @GetMapping("/mobile/statistics/redemption-volume")
+    public ResponseMessage<Long> getMobileRedemptionVolume() {
+        logger.info("[Mobile] Fetching redemption volume");
         Long volume = statisticsService.getRedemptionVolume();
         return ResponseMessage.success(volume);
     }
