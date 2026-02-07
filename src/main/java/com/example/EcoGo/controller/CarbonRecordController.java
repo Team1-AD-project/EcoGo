@@ -21,7 +21,7 @@ import com.example.EcoGo.model.CarbonRecord;
  * 路径规范：/api/v1/carbon-records
  */
 @RestController
-@RequestMapping("/api/v1/carbon-records")
+@RequestMapping("/api/v1")
 public class CarbonRecordController {
     private static final Logger logger = LoggerFactory.getLogger(CarbonRecordController.class);
 
@@ -32,7 +32,7 @@ public class CarbonRecordController {
      * 获取所有积分记录
      * GET /api/v1/carbon-records
      */
-    @GetMapping
+    @GetMapping("/carbon-records")
     public ResponseMessage<List<CarbonRecord>> getAllRecords() {
         logger.info("获取所有碳积分记录");
         List<CarbonRecord> records = carbonRecordService.getAllRecords();
@@ -43,7 +43,7 @@ public class CarbonRecordController {
      * 获取用户的积分记录
      * GET /api/v1/carbon-records/user/{userId}
      */
-    @GetMapping("/user/{userId}")
+    @GetMapping("/carbon-records/user/{userId}")
     public ResponseMessage<List<CarbonRecord>> getRecordsByUserId(@PathVariable String userId) {
         logger.info("获取用户碳积分记录，用户ID：{}", userId);
         List<CarbonRecord> records = carbonRecordService.getRecordsByUserId(userId);
@@ -54,7 +54,7 @@ public class CarbonRecordController {
      * 用户获取积分
      * POST /api/v1/carbon-records/earn
      */
-    @PostMapping("/earn")
+    @PostMapping("/carbon-records/earn")
     public ResponseMessage<CarbonRecord> earnCredits(
             @RequestParam String userId,
             @RequestParam Integer credits,
@@ -69,7 +69,7 @@ public class CarbonRecordController {
      * 用户消耗积分
      * POST /api/v1/carbon-records/spend
      */
-    @PostMapping("/spend")
+    @PostMapping("/carbon-records/spend")
     public ResponseMessage<CarbonRecord> spendCredits(
             @RequestParam String userId,
             @RequestParam Integer credits,
@@ -84,7 +84,7 @@ public class CarbonRecordController {
      * 获取用户总积分
      * GET /api/v1/carbon-records/user/{userId}/total
      */
-    @GetMapping("/user/{userId}/total")
+    @GetMapping("/carbon-records/user/{userId}/total")
     public ResponseMessage<Integer> getTotalCredits(@PathVariable String userId) {
         logger.info("获取用户总积分，用户ID：{}", userId);
         Integer total = carbonRecordService.getTotalCreditsByUserId(userId);
@@ -98,8 +98,20 @@ public class CarbonRecordController {
      * Get Faculty Total Carbon
      * GET /api/v1/carbon-records/faculty/total
      */
-    @GetMapping("/faculty/total")
+    @GetMapping("/carbon-records/faculty/total")
     public ResponseMessage<com.example.EcoGo.dto.FacultyStatsDto.CarbonResponse> getFacultyTotalCarbon(
+            @org.springframework.web.bind.annotation.RequestHeader("Authorization") String authHeader) {
+        String token = authHeader.replace("Bearer ", "");
+        String userId = jwtUtils.getUserIdFromToken(token);
+        return ResponseMessage.success(carbonRecordService.getFacultyTotalCarbon(userId));
+    }
+
+    /**
+     * Admin: Get Faculty Total Carbon (Same logic)
+     * GET /api/v1/admin/carbon-records/faculty/total
+     */
+    @GetMapping("/admin/carbon-records/faculty/total")
+    public ResponseMessage<com.example.EcoGo.dto.FacultyStatsDto.CarbonResponse> getFacultyTotalCarbonAdmin(
             @org.springframework.web.bind.annotation.RequestHeader("Authorization") String authHeader) {
         String token = authHeader.replace("Bearer ", "");
         String userId = jwtUtils.getUserIdFromToken(token);

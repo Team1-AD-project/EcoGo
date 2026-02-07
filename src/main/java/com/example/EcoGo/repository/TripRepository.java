@@ -31,4 +31,7 @@ public interface TripRepository extends MongoRepository<Trip, String> {
 
     // List trips within a time range AND status
     List<Trip> findByStartTimeBetweenAndCarbonStatus(LocalDateTime start, LocalDateTime end, String carbonStatus);
+
+    // Batch query for users' trips with status
+    List<Trip> findByUserIdInAndCarbonStatus(List<String> userIds, String carbonStatus);
 }

@@ -84,6 +84,9 @@ public class CarbonRecordImplementation implements CarbonRecordInterface {
     @org.springframework.beans.factory.annotation.Autowired
     private com.example.EcoGo.repository.UserRepository userRepository;
 
+    @Autowired
+    private com.example.EcoGo.repository.TripRepository tripRepository;
+
     @Override
     public com.example.EcoGo.dto.FacultyStatsDto.CarbonResponse getFacultyTotalCarbon(String userId) {
         // 1. Get current user
@@ -101,13 +104,22 @@ public class CarbonRecordImplementation implements CarbonRecordInterface {
             return new com.example.EcoGo.dto.FacultyStatsDto.CarbonResponse(faculty, 0.0);
         }
 
-        // 3. Sum totalCarbon from User entities directly
-        double totalCarbon = facultyUsers.stream()
-                .mapToDouble(com.example.EcoGo.model.User::getTotalCarbon)
+        // 3. Get all User IDs
+        List<String> userIds = facultyUsers.stream()
+                .map(com.example.EcoGo.model.User::getUserid)
+                .collect(java.util.stream.Collectors.toList());
+
+        // 4. Fetch all COMPLETED trips for these users
+        List<com.example.EcoGo.model.Trip> trips = tripRepository.findByUserIdInAndCarbonStatus(userIds, "completed");
+
+        // 5. Sum carbonSaved from Trips
+        double totalCarbonGrams = trips.stream()
+                .mapToDouble(com.example.EcoGo.model.Trip::getCarbonSaved)
                 .sum();
 
-        double roundedTotal = Math.round(totalCarbon * 100.0) / 100.0;
+        // 6. Convert to kg and round to 2 decimal places
+        double totalCarbonKg = Math.round((totalCarbonGrams / 1000.0) * 100.0) / 100.0;
 
-        return new com.example.EcoGo.dto.FacultyStatsDto.CarbonResponse(faculty, roundedTotal);
+        return new com.example.EcoGo.dto.FacultyStatsDto.CarbonResponse(faculty, totalCarbonKg);
     }
 }
