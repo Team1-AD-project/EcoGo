@@ -350,16 +350,27 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
+      - name: Download JaCoCo Coverage Reports
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-reports
+          path: target/site/jacoco
+
       - name: SonarQube Scan
         if: env.SONAR_TOKEN != ''
         run: |
-          mvn clean verify sonar:sonar -DskipTests \
+          # NOTE:
+          # - Do NOT run `clean` here; we download JaCoCo XML/HTML from the coverage stage.
+          # - Do NOT skip compilation; SonarJava needs compiled classes for best accuracy.
+          mvn -DskipTests verify sonar:sonar \
             -Dsonar.projectKey=Team1-AD-project_EcoGo \
             -Dsonar.organization=team1-ad-project \
             -Dsonar.sources=src/main \
             -Dsonar.tests=src/test \
             -Dsonar.host.url=${{ env.SONAR_HOST_URL }} \
-            -Dsonar.login=${{ env.SONAR_TOKEN }}
+            -Dsonar.login=${{ env.SONAR_TOKEN }} \
+            -Dsonar.projectVersion=${{ github.run_number }} \
+            -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
         continue-on-error: true
 
       - name: SonarQube Not Configured
