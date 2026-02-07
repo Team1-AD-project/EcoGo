@@ -228,12 +228,14 @@ public class ChallengeImplementation implements ChallengeInterface {
             dto.setUserAvatar(null);
         }
 
-        // 从Trip表计算进度
+        // 从Trip表计算进度（使用当月范围）
+        LocalDateTime monthStart = LocalDateTime.now().withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
+        LocalDateTime monthEnd = monthStart.plusMonths(1).minusNanos(1);
         Double current = calculateProgressFromTrips(
                 progress.getUserId(),
                 challenge.getType(),
-                challenge.getStartTime(),
-                challenge.getEndTime()
+                monthStart,
+                monthEnd
         );
         dto.setCurrent(current);
 
@@ -248,13 +250,22 @@ public class ChallengeImplementation implements ChallengeInterface {
         // 判断是否已完成
         if (target != null && current >= target) {
             dto.setStatus("COMPLETED");
-            // 如果之前是IN_PROGRESS，更新为COMPLETED
+            // 如果之前是IN_PROGRESS，更新为COMPLETED并发放奖励
             if ("IN_PROGRESS".equals(progress.getStatus())) {
                 progress.setStatus("COMPLETED");
                 progress.setCompletedAt(LocalDateTime.now());
                 progress.setUpdatedAt(LocalDateTime.now());
+                progress.setRewardClaimed(true);
                 userChallengeProgressRepository.save(progress);
                 dto.setCompletedAt(progress.getCompletedAt());
+                dto.setRewardClaimed(true);
+
+                // 发放积分奖励
+                if (challenge.getReward() != null && challenge.getReward() > 0 && user != null) {
+                    user.setCurrentPoints(user.getCurrentPoints() + challenge.getReward());
+                    user.setTotalPoints(user.getTotalPoints() + challenge.getReward());
+                    userRepository.save(user);
+                }
             }
         } else {
             dto.setStatus(progress.getStatus());
