@@ -1,20 +1,21 @@
 package com.example.EcoGo.scheduler;
 
-import com.example.EcoGo.dto.LeaderboardEntry;
-import com.example.EcoGo.interfacemethods.LeaderboardInterface;
-import com.example.EcoGo.interfacemethods.PointsService;
-import com.example.EcoGo.model.LeaderboardReward;
-import com.example.EcoGo.repository.LeaderboardRewardRepository;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.YearMonth;
+import java.util.List;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.YearMonth;
-import java.util.List;
+import com.example.EcoGo.dto.LeaderboardEntry;
+import com.example.EcoGo.interfacemethods.LeaderboardInterface;
+import com.example.EcoGo.interfacemethods.PointsService;
+import com.example.EcoGo.model.LeaderboardReward;
+import com.example.EcoGo.repository.LeaderboardRewardRepository;
 
 @Component
 public class LeaderboardRewardScheduler {
@@ -33,7 +34,7 @@ public class LeaderboardRewardScheduler {
     /**
      * Daily reward: runs at 00:05 every day, rewards top 10 for YESTERDAY.
      */
-    @Scheduled(cron = "0 5 0 * * ?")
+    @Scheduled(cron = "0 47 0 * * ?")
     public void distributeDailyRewards() {
         LocalDate yesterday = LocalDate.now().minusDays(1);
         String periodKey = yesterday.toString();
