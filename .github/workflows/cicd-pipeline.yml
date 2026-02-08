@@ -1193,13 +1193,7 @@ jobs:
           EC2_USER="${{ env.EC2_SSH_USER }}"
           echo "Deploying to ${EC2_USER}@${EC2_IP}..."
 
-          # ── [DIAG H3/H5] Verbose SSH to see exact auth failure reason ──
-          echo "::group::[DIAG] SSH verbose connection test"
-          echo "[DIAG] deploy_key exists: $(test -f deploy_key && echo YES || echo NO)"
-          echo "[DIAG] deploy_key.pub exists: $(test -f deploy_key.pub && echo YES || echo NO)"
-          ssh -vvv -o StrictHostKeyChecking=no -o ConnectTimeout=15 -i deploy_key ${EC2_USER}@${EC2_IP} "echo SSH_CONNECTION_OK" 2>&1 | tail -40 || echo "[DIAG-H3/H5] SSH verbose test FAILED (this is expected if auth fails, check lines above)"
-          echo "::endgroup::"
-
+          # Install Docker & start MongoDB + App
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i deploy_key ${EC2_USER}@${EC2_IP} << 'DEPLOY_EOF'
             # Install Docker if not present
             if ! command -v docker &> /dev/null; then
@@ -1207,6 +1201,29 @@ jobs:
               sudo systemctl enable docker
             fi
             sudo systemctl start docker
+
+            # Start MongoDB if not running
+            if ! sudo docker ps --format '{{.Names}}' | grep -q ecogo-mongodb; then
+              echo "Starting MongoDB..."
+              sudo docker rm -f ecogo-mongodb 2>/dev/null || true
+              sudo docker run -d --name ecogo-mongodb \
+                --restart unless-stopped \
+                --network host \
+                -e MONGO_INITDB_DATABASE=EcoGo \
+                -v mongodb-data:/data/db \
+                mongo:latest
+              echo "Waiting for MongoDB to be ready..."
+              for i in $(seq 1 15); do
+                if sudo docker exec ecogo-mongodb mongosh --quiet --eval "db.adminCommand('ping').ok" 2>/dev/null | grep -q 1; then
+                  echo "MongoDB is ready!"
+                  break
+                fi
+                echo "  Waiting for MongoDB... ($i/15)"
+                sleep 3
+              done
+            else
+              echo "MongoDB already running."
+            fi
           DEPLOY_EOF
 
           # Re-inject key (expires after 60s)
@@ -1216,7 +1233,7 @@ jobs:
             --instance-os-user "${EC2_USER}" \
             --ssh-public-key file://deploy_key.pub
 
-          # Docker login & deploy
+          # Docker login & deploy app
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i deploy_key ${EC2_USER}@${EC2_IP} \
             "echo '${{ secrets.GITHUB_TOKEN }}' | sudo docker login ghcr.io -u '${{ github.actor }}' --password-stdin && \
              sudo docker pull ${{ needs.build-push.outputs.image }} && \
@@ -1225,6 +1242,8 @@ jobs:
                --restart unless-stopped \
                --network host \
                -e SERVER_PORT=${{ env.DEPLOY_PORT }} \
+               -e SPRING_DATA_MONGODB_URI=mongodb://localhost:27017/EcoGo \
+               -e SPRING_DATA_MONGODB_DATABASE=EcoGo \
                ${{ needs.build-push.outputs.image }}"
 
           # Health check
@@ -1436,6 +1455,7 @@ jobs:
           EC2_USER="${{ env.EC2_SSH_USER }}"
           echo "Deploying to ${EC2_USER}@${EC2_IP}..."
 
+          # Install Docker & start MongoDB + App
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i deploy_key ${EC2_USER}@${EC2_IP} << 'DEPLOY_EOF'
             # Install Docker if not present
             if ! command -v docker &> /dev/null; then
@@ -1443,6 +1463,29 @@ jobs:
               sudo systemctl enable docker
             fi
             sudo systemctl start docker
+
+            # Start MongoDB if not running
+            if ! sudo docker ps --format '{{.Names}}' | grep -q ecogo-mongodb; then
+              echo "Starting MongoDB..."
+              sudo docker rm -f ecogo-mongodb 2>/dev/null || true
+              sudo docker run -d --name ecogo-mongodb \
+                --restart unless-stopped \
+                --network host \
+                -e MONGO_INITDB_DATABASE=EcoGo \
+                -v mongodb-data:/data/db \
+                mongo:latest
+              echo "Waiting for MongoDB to be ready..."
+              for i in $(seq 1 15); do
+                if sudo docker exec ecogo-mongodb mongosh --quiet --eval "db.adminCommand('ping').ok" 2>/dev/null | grep -q 1; then
+                  echo "MongoDB is ready!"
+                  break
+                fi
+                echo "  Waiting for MongoDB... ($i/15)"
+                sleep 3
+              done
+            else
+              echo "MongoDB already running."
+            fi
           DEPLOY_EOF
 
           # Re-inject key (expires after 60s)
@@ -1452,7 +1495,7 @@ jobs:
             --instance-os-user "${EC2_USER}" \
             --ssh-public-key file://deploy_key.pub
 
-          # Docker login & deploy
+          # Docker login & deploy app
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i deploy_key ${EC2_USER}@${EC2_IP} \
             "echo '${{ secrets.GITHUB_TOKEN }}' | sudo docker login ghcr.io -u '${{ github.actor }}' --password-stdin && \
              sudo docker pull ${{ needs.build-push.outputs.image }} && \
@@ -1461,6 +1504,8 @@ jobs:
                --restart unless-stopped \
                --network host \
                -e SERVER_PORT=${{ env.DEPLOY_PORT }} \
+               -e SPRING_DATA_MONGODB_URI=mongodb://localhost:27017/EcoGo \
+               -e SPRING_DATA_MONGODB_DATABASE=EcoGo \
                ${{ needs.build-push.outputs.image }}"
 
           # Health check
