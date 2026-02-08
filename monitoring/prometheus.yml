@@ -1,4 +1,5 @@
-# Prometheus Configuration for EcoGo
+# Prometheus Configuration for EcoGo (EC2 host-network mode)
+# All targets use localhost because Prometheus runs with network_mode: host
 
 global:
   scrape_interval: 15s
@@ -7,14 +8,7 @@ global:
     cluster: 'ecogo-cluster'
     environment: 'staging'
 
-# Alertmanager configuration
-alerting:
-  alertmanagers:
-    - static_configs:
-        - targets:
-            - localhost:9093
-
-# Load rules once and periodically evaluate them
+# Load alert rules
 rule_files:
   - "alerts.yml"
 
@@ -25,32 +19,19 @@ scrape_configs:
     static_configs:
       - targets: ['localhost:9090']
 
-  # EcoGo Application
+  # EcoGo Spring Boot Application (via Actuator)
   - job_name: 'ecogo-app'
     metrics_path: '/actuator/prometheus'
+    scrape_interval: 10s
     static_configs:
       - targets: ['localhost:8090']
         labels:
           application: 'ecogo'
           service: 'backend'
 
-  # MongoDB Exporter (optional)
-  - job_name: 'mongodb'
-    static_configs:
-      - targets: ['localhost:9216']
-        labels:
-          service: 'mongodb'
-
-  # Node Exporter for system metrics
+  # Node Exporter for system metrics (CPU, memory, disk, network)
   - job_name: 'node'
     static_configs:
       - targets: ['localhost:9100']
         labels:
           service: 'node-exporter'
-
-  # Docker metrics (if using Docker)
-  - job_name: 'docker'
-    static_configs:
-      - targets: ['localhost:9323']
-        labels:
-          service: 'docker'

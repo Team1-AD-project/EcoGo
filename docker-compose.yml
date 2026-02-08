@@ -1,0 +1,43 @@
+version: "3.8"
+
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: ecogo-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=EcoGo
+    volumes:
+      - mongodb-data:/data/db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval \"db.adminCommand('ping').ok\" | grep 1 > /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ecogo-app
+    ports:
+      - "8090:8090"
+    environment:
+      # Override application.yaml's localhost MongoDB for container networking
+      - SPRING_DATA_MONGODB_URI=mongodb://mongodb:27017/EcoGo
+      - SPRING_DATA_MONGODB_DATABASE=EcoGo
+      - SERVER_PORT=8090
+      # Optional: override default from Dockerfile if needed
+      # - SPRING_PROFILES_ACTIVE=production
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  mongodb-data:
+    driver: local
+
