@@ -1216,6 +1216,62 @@ jobs:
 
           rm -f deploy_key deploy_key.pub
 
+      - name: Deploy Monitoring Stack to EC2
+        if: steps.check_aws.outputs.aws_configured == 'true' && steps.get-ip.outcome == 'success'
+        run: |
+          EC2_IP="${{ steps.get-ip.outputs.ec2_ip }}"
+          EC2_USER="${{ env.EC2_SSH_USER }}"
+
+          # Prepare SSH key
+          printenv SSH_KEY > deploy_key
+          chmod 600 deploy_key
+          ssh-keygen -y -f deploy_key > deploy_key.pub
+
+          # Inject key
+          aws ec2-instance-connect send-ssh-public-key \
+            --instance-id ${{ env.EC2_INSTANCE_ID }} \
+            --availability-zone "${{ steps.get-ip.outputs.ec2_az }}" \
+            --instance-os-user "${EC2_USER}" \
+            --ssh-public-key file://deploy_key.pub
+
+          # Transfer monitoring files via tar over SSH
+          echo "Uploading monitoring config to EC2..."
+          tar czf - monitoring/ | ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+            -i deploy_key ${EC2_USER}@${EC2_IP} "mkdir -p ~/monitoring && tar xzf - -C ~/"
+
+          # Re-inject key
+          aws ec2-instance-connect send-ssh-public-key \
+            --instance-id ${{ env.EC2_INSTANCE_ID }} \
+            --availability-zone "${{ steps.get-ip.outputs.ec2_az }}" \
+            --instance-os-user "${EC2_USER}" \
+            --ssh-public-key file://deploy_key.pub
+
+          # Install docker-compose plugin & start monitoring
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i deploy_key ${EC2_USER}@${EC2_IP} << 'MONITOR_EOF'
+            # Install Docker Compose plugin if not available
+            if ! sudo docker compose version &>/dev/null; then
+              echo "Installing Docker Compose plugin..."
+              sudo mkdir -p /usr/local/lib/docker/cli-plugins
+              sudo curl -SL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-$(uname -m)" \
+                -o /usr/local/lib/docker/cli-plugins/docker-compose
+              sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+            fi
+
+            cd ~/monitoring
+            echo "Starting monitoring stack..."
+            sudo docker compose down 2>/dev/null || true
+            sudo docker compose up -d
+
+            echo "Monitoring containers:"
+            sudo docker ps --filter "name=ecogo-prometheus" --filter "name=ecogo-grafana" --filter "name=ecogo-node-exporter" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+          MONITOR_EOF
+
+          rm -f deploy_key deploy_key.pub
+          echo "Monitoring stack deployed!"
+        env:
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+        continue-on-error: true
+
       - name: Get deployment URL
         id: get-url
         if: steps.check_aws.outputs.aws_configured == 'true' && steps.get-ip.outcome == 'success'
@@ -1236,6 +1292,8 @@ jobs:
           echo "- **Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
           if [ -n "${{ steps.get-url.outputs.service_url }}" ]; then
             echo "- **URL:** ${{ steps.get-url.outputs.service_url }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Grafana:** http://${{ steps.get-ip.outputs.ec2_ip }}:3000" >> $GITHUB_STEP_SUMMARY
+            echo "- **Prometheus:** http://${{ steps.get-ip.outputs.ec2_ip }}:9090" >> $GITHUB_STEP_SUMMARY
           fi
 
   # ── Deploy to Production (main branch only) — EC2 + Docker ────────
@@ -1393,6 +1451,61 @@ jobs:
 
           rm -f deploy_key deploy_key.pub
 
+      - name: Deploy Monitoring Stack to EC2
+        if: steps.check_aws.outputs.aws_configured == 'true' && steps.get-ip.outcome == 'success'
+        run: |
+          EC2_IP="${{ steps.get-ip.outputs.ec2_ip }}"
+          EC2_USER="${{ env.EC2_SSH_USER }}"
+
+          # Prepare SSH key
+          printenv SSH_KEY > deploy_key
+          chmod 600 deploy_key
+          ssh-keygen -y -f deploy_key > deploy_key.pub
+
+          # Inject key
+          aws ec2-instance-connect send-ssh-public-key \
+            --instance-id ${{ env.EC2_INSTANCE_ID }} \
+            --availability-zone "${{ steps.get-ip.outputs.ec2_az }}" \
+            --instance-os-user "${EC2_USER}" \
+            --ssh-public-key file://deploy_key.pub
+
+          # Transfer monitoring files via tar over SSH
+          echo "Uploading monitoring config to EC2..."
+          tar czf - monitoring/ | ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 \
+            -i deploy_key ${EC2_USER}@${EC2_IP} "mkdir -p ~/monitoring && tar xzf - -C ~/"
+
+          # Re-inject key
+          aws ec2-instance-connect send-ssh-public-key \
+            --instance-id ${{ env.EC2_INSTANCE_ID }} \
+            --availability-zone "${{ steps.get-ip.outputs.ec2_az }}" \
+            --instance-os-user "${EC2_USER}" \
+            --ssh-public-key file://deploy_key.pub
+
+          # Install docker-compose plugin & start monitoring
+          ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i deploy_key ${EC2_USER}@${EC2_IP} << 'MONITOR_EOF'
+            if ! sudo docker compose version &>/dev/null; then
+              echo "Installing Docker Compose plugin..."
+              sudo mkdir -p /usr/local/lib/docker/cli-plugins
+              sudo curl -SL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-$(uname -m)" \
+                -o /usr/local/lib/docker/cli-plugins/docker-compose
+              sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+            fi
+
+            cd ~/monitoring
+            echo "Starting monitoring stack..."
+            sudo docker compose down 2>/dev/null || true
+            sudo docker compose up -d
+
+            echo "Monitoring containers:"
+            sudo docker ps --filter "name=ecogo-prometheus" --filter "name=ecogo-grafana" --filter "name=ecogo-node-exporter" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+          MONITOR_EOF
+
+          rm -f deploy_key deploy_key.pub
+          echo "Monitoring stack deployed!"
+        env:
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+        continue-on-error: true
+
       - name: Get deployment URL
         id: get-url
         if: steps.check_aws.outputs.aws_configured == 'true' && steps.get-ip.outcome == 'success'
@@ -1414,6 +1527,8 @@ jobs:
           echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
           if [ -n "${{ steps.get-url.outputs.service_url }}" ]; then
             echo "- **URL:** ${{ steps.get-url.outputs.service_url }}" >> $GITHUB_STEP_SUMMARY
+            echo "- **Grafana:** http://${{ steps.get-ip.outputs.ec2_ip }}:3000" >> $GITHUB_STEP_SUMMARY
+            echo "- **Prometheus:** http://${{ steps.get-ip.outputs.ec2_ip }}:9090" >> $GITHUB_STEP_SUMMARY
           fi
 
 # ════════════════════════════════════════════════════════════════════════
