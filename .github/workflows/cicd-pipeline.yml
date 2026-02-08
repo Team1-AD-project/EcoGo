@@ -1102,35 +1102,60 @@ jobs:
         if: steps.check_aws.outputs.aws_configured == 'true'
         id: get-ip
         run: |
+          INSTANCE_ID="${{ env.EC2_INSTANCE_ID }}"
+          echo "Looking up instance: ${INSTANCE_ID} in region ${{ env.AWS_DEPLOY_REGION }}"
+
+          # Get full instance info for diagnostics
+          INSTANCE_STATE=$(aws ec2 describe-instances \
+            --instance-ids "${INSTANCE_ID}" \
+            --query 'Reservations[0].Instances[0].State.Name' \
+            --output text 2>&1) || true
+          echo "Instance state: ${INSTANCE_STATE}"
+
+          # If instance is stopped, try to start it
+          if [ "${INSTANCE_STATE}" = "stopped" ]; then
+            echo "Instance is stopped — starting it now..."
+            aws ec2 start-instances --instance-ids "${INSTANCE_ID}"
+            echo "Waiting for instance to enter running state..."
+            aws ec2 wait instance-running --instance-ids "${INSTANCE_ID}"
+            echo "Instance is now running. Waiting 30s for public IP assignment..."
+            sleep 30
+          fi
+
+          # Now get IP and AZ
           read -r EC2_IP EC2_AZ <<< "$(aws ec2 describe-instances \
-            --instance-ids ${{ env.EC2_INSTANCE_ID }} \
+            --instance-ids "${INSTANCE_ID}" \
             --query 'Reservations[0].Instances[0].[PublicIpAddress,Placement.AvailabilityZone]' \
             --output text)"
-          echo "ec2_ip=$EC2_IP" >> $GITHUB_OUTPUT
-          echo "ec2_az=$EC2_AZ" >> $GITHUB_OUTPUT
-          echo "EC2 Public IP: $EC2_IP"
-          echo "EC2 Availability Zone: $EC2_AZ"
 
-      - name: Write SSH key
-        if: steps.check_aws.outputs.aws_configured == 'true'
+          echo "EC2 Public IP: ${EC2_IP}"
+          echo "EC2 Availability Zone: ${EC2_AZ}"
+
+          # Validate IP is not empty or None
+          if [ -z "${EC2_IP}" ] || [ "${EC2_IP}" = "None" ] || [ "${EC2_IP}" = "null" ]; then
+            echo "::error::EC2 instance ${INSTANCE_ID} has no public IP address."
+            echo "Possible causes:"
+            echo "  - Instance is in a private subnet without public IP"
+            echo "  - Instance state: ${INSTANCE_STATE}"
+            echo "  - Elastic IP not associated"
+            echo "  - Wrong instance ID or region"
+            exit 1
+          fi
+
+          echo "ec2_ip=${EC2_IP}" >> $GITHUB_OUTPUT
+          echo "ec2_az=${EC2_AZ}" >> $GITHUB_OUTPUT
+
+      - name: Deploy Docker container to EC2
+        if: steps.check_aws.outputs.aws_configured == 'true' && steps.get-ip.outcome == 'success'
         run: |
           printenv SSH_KEY > deploy_key
           chmod 600 deploy_key
-          echo "--- SSH Key Diagnostics ---"
-          echo "Key file size: $(wc -c < deploy_key) bytes"
-          echo "Key line count: $(wc -l < deploy_key) lines"
-          head -1 deploy_key
-          tail -1 deploy_key
-          echo "--- End Diagnostics ---"
-        env:
-          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
 
-      - name: Deploy Docker container to EC2
-        if: steps.check_aws.outputs.aws_configured == 'true'
-        run: |
           EC2_IP="${{ steps.get-ip.outputs.ec2_ip }}"
+          EC2_USER="${{ env.EC2_SSH_USER }}"
+          echo "Deploying to ${EC2_USER}@${EC2_IP}..."
 
-          ssh -o StrictHostKeyChecking=no -i deploy_key ec2-user@${EC2_IP} << 'DEPLOY_EOF'
+          ssh -o StrictHostKeyChecking=no -i deploy_key ${EC2_USER}@${EC2_IP} << 'DEPLOY_EOF'
             # Install Docker if not present
             if ! command -v docker &> /dev/null; then
               sudo yum update -y && sudo yum install -y docker
@@ -1139,8 +1164,8 @@ jobs:
             sudo systemctl start docker
           DEPLOY_EOF
 
-          # Docker login & deploy (separate SSH to avoid heredoc variable issues)
-          ssh -o StrictHostKeyChecking=no -i deploy_key ec2-user@${EC2_IP} \
+          # Docker login & deploy
+          ssh -o StrictHostKeyChecking=no -i deploy_key ${EC2_USER}@${EC2_IP} \
             "echo '${{ secrets.GITHUB_TOKEN }}' | sudo docker login ghcr.io -u '${{ github.actor }}' --password-stdin && \
              sudo docker pull ${{ needs.build-push.outputs.image }} && \
              sudo docker stop ecogo 2>/dev/null; sudo docker rm ecogo 2>/dev/null; \
@@ -1153,7 +1178,7 @@ jobs:
           # Health check via SSH
           echo "Waiting for application to start..."
           for i in $(seq 1 30); do
-            if ssh -o StrictHostKeyChecking=no -i deploy_key ec2-user@${EC2_IP} \
+            if ssh -o StrictHostKeyChecking=no -i deploy_key ${EC2_USER}@${EC2_IP} \
               "curl -s http://localhost:${{ env.DEPLOY_PORT }}/actuator/health" 2>/dev/null | grep -q "UP"; then
               echo "Application is healthy!"
               break
@@ -1163,10 +1188,12 @@ jobs:
           done
 
           rm -f deploy_key
+        env:
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
 
       - name: Get deployment URL
         id: get-url
-        if: steps.check_aws.outputs.aws_configured == 'true'
+        if: steps.check_aws.outputs.aws_configured == 'true' && steps.get-ip.outcome == 'success'
         run: |
           echo "service_url=http://${{ steps.get-ip.outputs.ec2_ip }}:${{ env.DEPLOY_PORT }}" >> $GITHUB_OUTPUT
 
@@ -1228,35 +1255,60 @@ jobs:
         if: steps.check_aws.outputs.aws_configured == 'true'
         id: get-ip
         run: |
+          INSTANCE_ID="${{ env.EC2_INSTANCE_ID }}"
+          echo "Looking up instance: ${INSTANCE_ID} in region ${{ env.AWS_DEPLOY_REGION }}"
+
+          # Get full instance info for diagnostics
+          INSTANCE_STATE=$(aws ec2 describe-instances \
+            --instance-ids "${INSTANCE_ID}" \
+            --query 'Reservations[0].Instances[0].State.Name' \
+            --output text 2>&1) || true
+          echo "Instance state: ${INSTANCE_STATE}"
+
+          # If instance is stopped, try to start it
+          if [ "${INSTANCE_STATE}" = "stopped" ]; then
+            echo "Instance is stopped — starting it now..."
+            aws ec2 start-instances --instance-ids "${INSTANCE_ID}"
+            echo "Waiting for instance to enter running state..."
+            aws ec2 wait instance-running --instance-ids "${INSTANCE_ID}"
+            echo "Instance is now running. Waiting 30s for public IP assignment..."
+            sleep 30
+          fi
+
+          # Now get IP and AZ
           read -r EC2_IP EC2_AZ <<< "$(aws ec2 describe-instances \
-            --instance-ids ${{ env.EC2_INSTANCE_ID }} \
+            --instance-ids "${INSTANCE_ID}" \
             --query 'Reservations[0].Instances[0].[PublicIpAddress,Placement.AvailabilityZone]' \
             --output text)"
-          echo "ec2_ip=$EC2_IP" >> $GITHUB_OUTPUT
-          echo "ec2_az=$EC2_AZ" >> $GITHUB_OUTPUT
-          echo "EC2 Public IP: $EC2_IP"
-          echo "EC2 Availability Zone: $EC2_AZ"
 
-      - name: Write SSH key
-        if: steps.check_aws.outputs.aws_configured == 'true'
+          echo "EC2 Public IP: ${EC2_IP}"
+          echo "EC2 Availability Zone: ${EC2_AZ}"
+
+          # Validate IP is not empty or None
+          if [ -z "${EC2_IP}" ] || [ "${EC2_IP}" = "None" ] || [ "${EC2_IP}" = "null" ]; then
+            echo "::error::EC2 instance ${INSTANCE_ID} has no public IP address."
+            echo "Possible causes:"
+            echo "  - Instance is in a private subnet without public IP"
+            echo "  - Instance state: ${INSTANCE_STATE}"
+            echo "  - Elastic IP not associated"
+            echo "  - Wrong instance ID or region"
+            exit 1
+          fi
+
+          echo "ec2_ip=${EC2_IP}" >> $GITHUB_OUTPUT
+          echo "ec2_az=${EC2_AZ}" >> $GITHUB_OUTPUT
+
+      - name: Deploy Docker container to EC2
+        if: steps.check_aws.outputs.aws_configured == 'true' && steps.get-ip.outcome == 'success'
         run: |
           printenv SSH_KEY > deploy_key
           chmod 600 deploy_key
-          echo "--- SSH Key Diagnostics ---"
-          echo "Key file size: $(wc -c < deploy_key) bytes"
-          echo "Key line count: $(wc -l < deploy_key) lines"
-          head -1 deploy_key
-          tail -1 deploy_key
-          echo "--- End Diagnostics ---"
-        env:
-          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
 
-      - name: Deploy Docker container to EC2
-        if: steps.check_aws.outputs.aws_configured == 'true'
-        run: |
           EC2_IP="${{ steps.get-ip.outputs.ec2_ip }}"
+          EC2_USER="${{ env.EC2_SSH_USER }}"
+          echo "Deploying to ${EC2_USER}@${EC2_IP}..."
 
-          ssh -o StrictHostKeyChecking=no -i deploy_key ec2-user@${EC2_IP} << 'DEPLOY_EOF'
+          ssh -o StrictHostKeyChecking=no -i deploy_key ${EC2_USER}@${EC2_IP} << 'DEPLOY_EOF'
             # Install Docker if not present
             if ! command -v docker &> /dev/null; then
               sudo yum update -y && sudo yum install -y docker
@@ -1266,7 +1318,7 @@ jobs:
           DEPLOY_EOF
 
           # Docker login & deploy
-          ssh -o StrictHostKeyChecking=no -i deploy_key ec2-user@${EC2_IP} \
+          ssh -o StrictHostKeyChecking=no -i deploy_key ${EC2_USER}@${EC2_IP} \
             "echo '${{ secrets.GITHUB_TOKEN }}' | sudo docker login ghcr.io -u '${{ github.actor }}' --password-stdin && \
              sudo docker pull ${{ needs.build-push.outputs.image }} && \
              sudo docker stop ecogo 2>/dev/null; sudo docker rm ecogo 2>/dev/null; \
@@ -1279,7 +1331,7 @@ jobs:
           # Health check via SSH
           echo "Waiting for application to start..."
           for i in $(seq 1 30); do
-            if ssh -o StrictHostKeyChecking=no -i deploy_key ec2-user@${EC2_IP} \
+            if ssh -o StrictHostKeyChecking=no -i deploy_key ${EC2_USER}@${EC2_IP} \
               "curl -s http://localhost:${{ env.DEPLOY_PORT }}/actuator/health" 2>/dev/null | grep -q "UP"; then
               echo "Application is healthy!"
               break
@@ -1289,10 +1341,12 @@ jobs:
           done
 
           rm -f deploy_key
+        env:
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
 
       - name: Get deployment URL
         id: get-url
-        if: steps.check_aws.outputs.aws_configured == 'true'
+        if: steps.check_aws.outputs.aws_configured == 'true' && steps.get-ip.outcome == 'success'
         run: |
           echo "service_url=http://${{ steps.get-ip.outputs.ec2_ip }}:${{ env.DEPLOY_PORT }}" >> $GITHUB_OUTPUT
 
