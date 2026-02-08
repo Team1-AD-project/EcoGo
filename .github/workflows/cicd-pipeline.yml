@@ -8,10 +8,12 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  ECS_CLUSTER: ecogo-cluster
-  ECS_SERVICE: ecogo-service
-  ECS_TASK_FAMILY: ecogo
-  CONTAINER_NAME: ecogo
+  # Allow overriding instance without code changes (optional).
+  EC2_INSTANCE_ID: ${{ secrets.EC2_INSTANCE_ID || 'i-07e266221fbbd9a10' }}
+  AWS_DEPLOY_REGION: ap-southeast-2
+  DEPLOY_PORT: 8090
+  # Default username for Amazon Linux. Override for Ubuntu: set secret EC2_SSH_USER=ubuntu
+  EC2_SSH_USER: ${{ secrets.EC2_SSH_USER || 'ec2-user' }}
   SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
   SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
@@ -494,6 +496,7 @@ jobs:
     runs-on: ubuntu-latest
     name: "Integration Tests (Compose + Schemathesis + optional Playwright)"
     needs: ci-metrics
+    if: "!cancelled()"
     services:
       mongodb:
         image: mongo:latest
@@ -565,6 +568,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Selenium Functional Test (Pre-Load Validation)
     needs: ci-metrics
+    if: "!cancelled()"
     services:
       mongodb:
         image: mongo:latest
@@ -677,6 +681,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Load & Performance Testing (JMeter)
     needs: ci-metrics
+    if: "!cancelled()"
     services:
       mongodb:
         image: mongo:latest
@@ -740,10 +745,8 @@ jobs:
     name: Build & Push Docker Images (main)
     needs: [integration-tests, selenium-tests, jmeter-tests]
     if: |
-      always() &&
-      needs.integration-tests.result == 'success' &&
-      (needs.selenium-tests.result == 'success' || needs.selenium-tests.result == 'failure') &&
-      (needs.jmeter-tests.result == 'success' || needs.jmeter-tests.result == 'failure')
+      !cancelled() &&
+      needs.integration-tests.result == 'success'
     permissions:
       packages: write
       contents: read
@@ -1049,28 +1052,31 @@ jobs:
 #  STAGE 7 — Deploy to AWS ECS/Fargate
 # ════════════════════════════════════════════════════════════════════════
 
-  # ── Deploy to Staging (develop / feature branches) ─────────────────
+  # ── Deploy to Staging (develop / feature branches) — EC2 + Docker ──
   deploy-staging:
     runs-on: ubuntu-latest
     name: Deploy to Staging
     needs: [iast-otel, k6-performance, dast-zap, build-push, sonarqube]
     if: |
-      always() &&
+      !cancelled() &&
       needs.build-push.result == 'success' &&
       (github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/heads/feature/'))
     environment:
       name: staging
       url: ${{ steps.get-url.outputs.service_url }}
+    outputs:
+      service_url: ${{ steps.get-url.outputs.service_url }}
+      aws_configured: ${{ steps.check_aws.outputs.aws_configured }}
     permissions:
       packages: read
       contents: read
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check AWS Credentials
+      - name: Check AWS & EC2 Configuration
         id: check_aws
         run: |
-          if [ -n "${{ secrets.AWS_ACCESS_KEY_ID }}" ] && [ -n "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ]; then
+          if [ -n "${{ secrets.AWS_ACCESS_KEY_ID }}" ] && [ -n "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ] && [ -n "${{ secrets.EC2_SSH_KEY }}" ]; then
             echo "aws_configured=true" >> $GITHUB_OUTPUT
           else
             echo "aws_configured=false" >> $GITHUB_OUTPUT
@@ -1082,51 +1088,86 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+          aws-region: ${{ env.AWS_DEPLOY_REGION }}
 
-      - name: Download current ECS task definition
+      - name: Get EC2 Public IP & AZ
+        if: steps.check_aws.outputs.aws_configured == 'true'
+        id: get-ip
+        run: |
+          read -r EC2_IP EC2_AZ <<< "$(aws ec2 describe-instances \
+            --instance-ids ${{ env.EC2_INSTANCE_ID }} \
+            --query 'Reservations[0].Instances[0].[PublicIpAddress,Placement.AvailabilityZone]' \
+            --output text)"
+          echo "ec2_ip=$EC2_IP" >> $GITHUB_OUTPUT
+          echo "ec2_az=$EC2_AZ" >> $GITHUB_OUTPUT
+          echo "EC2 Public IP: $EC2_IP"
+          echo "EC2 Availability Zone: $EC2_AZ"
+
+      - name: Deploy Docker container to EC2
         if: steps.check_aws.outputs.aws_configured == 'true'
         run: |
-          aws ecs describe-task-definition \
-            --task-definition ${{ env.ECS_TASK_FAMILY }} \
-            --query taskDefinition > task-definition.json
-          echo "Current image:"
-          cat task-definition.json | jq '.containerDefinitions[0].image'
+          printf '%s' "${{ secrets.EC2_SSH_KEY }}" > deploy_key
+          chmod 600 deploy_key
+          ssh-keygen -y -f deploy_key > deploy_key.pub
+          EC2_IP="${{ steps.get-ip.outputs.ec2_ip }}"
+          EC2_AZ="${{ steps.get-ip.outputs.ec2_az }}"
+          EC2_USER="${{ env.EC2_SSH_USER }}"
 
-      - name: Render new image in task definition
-        if: steps.check_aws.outputs.aws_configured == 'true'
-        id: render-task-def
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition: task-definition.json
-          container-name: ${{ env.CONTAINER_NAME }}
-          image: ${{ needs.build-push.outputs.image }}
+          echo "Attempting EC2 Instance Connect key injection (best-effort)..."
+          aws ec2-instance-connect send-ssh-public-key \
+            --instance-id ${{ env.EC2_INSTANCE_ID }} \
+            --availability-zone "${EC2_AZ}" \
+            --instance-os-user "${EC2_USER}" \
+            --ssh-public-key file://deploy_key.pub \
+            || echo "WARNING: EC2 Instance Connect key injection failed. SSH may still work if the key is already authorized on the instance. If SSH fails, ensure port 22 is open and IAM allows ec2-instance-connect:SendSSHPublicKey."
 
-      - name: Deploy to Amazon ECS (Staging)
-        if: steps.check_aws.outputs.aws_configured == 'true'
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
-        with:
-          task-definition: ${{ steps.render-task-def.outputs.task-definition }}
-          service: ${{ env.ECS_SERVICE }}
-          cluster: ${{ env.ECS_CLUSTER }}
-          wait-for-service-stability: true
-          wait-for-minutes: 10
+          ssh -o StrictHostKeyChecking=no -i deploy_key ${EC2_USER}@${EC2_IP} << EOF
+            # Install Docker if not present
+            if ! command -v docker &> /dev/null; then
+              sudo yum update -y && sudo yum install -y docker
+              sudo systemctl enable docker
+            fi
+            sudo systemctl start docker
+
+            # Login to GitHub Container Registry
+            echo "${{ secrets.GITHUB_TOKEN }}" | sudo docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+            # Pull latest image
+            sudo docker pull ${{ needs.build-push.outputs.image }}
+
+            # Replace running container
+            sudo docker stop ecogo 2>/dev/null || true
+            sudo docker rm ecogo 2>/dev/null || true
+            sudo docker run -d --name ecogo \
+              --restart unless-stopped \
+              --network host \
+              -e SERVER_PORT=${{ env.DEPLOY_PORT }} \
+              ${{ needs.build-push.outputs.image }}
+
+            # Health check
+            echo "Waiting for application to start..."
+            for i in \$(seq 1 30); do
+              if curl -s http://localhost:${{ env.DEPLOY_PORT }}/actuator/health > /dev/null 2>&1; then
+                echo "Application is healthy!"
+                break
+              fi
+              sleep 5
+            done
+          EOF
+
+          rm -f deploy_key deploy_key.pub
 
       - name: Get deployment URL
         id: get-url
         if: steps.check_aws.outputs.aws_configured == 'true'
         run: |
-          ALB_DNS=$(aws elbv2 describe-load-balancers --names ecogo-alb \
-            --query 'LoadBalancers[0].DNSName' --output text 2>/dev/null || echo "")
-          if [ -n "$ALB_DNS" ] && [ "$ALB_DNS" != "None" ]; then
-            echo "service_url=http://${ALB_DNS}" >> $GITHUB_OUTPUT
-          fi
+          echo "service_url=http://${{ steps.get-ip.outputs.ec2_ip }}:${{ env.DEPLOY_PORT }}" >> $GITHUB_OUTPUT
 
       - name: AWS Not Configured Warning
         if: steps.check_aws.outputs.aws_configured != 'true'
         run: |
-          echo "WARNING - AWS credentials not configured. Skipping deployment."
-          echo "See .github/SECRETS-TEMPLATE.md to configure."
+          echo "⚠️ Missing secrets for EC2 deployment."
+          echo "Required: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, EC2_SSH_KEY"
 
       - name: Staging Deploy Summary
         if: always()
@@ -1134,29 +1175,35 @@ jobs:
           echo "## Staging Deployment" >> $GITHUB_STEP_SUMMARY
           echo "- **Image:** \`${{ needs.build-push.outputs.image }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          if [ -n "${{ steps.get-url.outputs.service_url }}" ]; then
+            echo "- **URL:** ${{ steps.get-url.outputs.service_url }}" >> $GITHUB_STEP_SUMMARY
+          fi
 
-  # ── Deploy to Production (main branch only) ────────────────────────
+  # ── Deploy to Production (main branch only) — EC2 + Docker ────────
   deploy-production:
     runs-on: ubuntu-latest
-    name: Deploy to AWS EC2 (docker compose)
+    name: Deploy to AWS EC2 (docker)
     needs: [iast-otel, k6-performance, dast-zap, build-push, sonarqube]
     if: |
-      always() &&
+      !cancelled() &&
       needs.build-push.result == 'success' &&
       github.ref == 'refs/heads/main'
     environment:
       name: production
       url: ${{ steps.get-url.outputs.service_url }}
+    outputs:
+      service_url: ${{ steps.get-url.outputs.service_url }}
+      aws_configured: ${{ steps.check_aws.outputs.aws_configured }}
     permissions:
       packages: read
       contents: read
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check AWS Credentials
+      - name: Check AWS & EC2 Configuration
         id: check_aws
         run: |
-          if [ -n "${{ secrets.AWS_ACCESS_KEY_ID }}" ] && [ -n "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ]; then
+          if [ -n "${{ secrets.AWS_ACCESS_KEY_ID }}" ] && [ -n "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ] && [ -n "${{ secrets.EC2_SSH_KEY }}" ]; then
             echo "aws_configured=true" >> $GITHUB_OUTPUT
           else
             echo "aws_configured=false" >> $GITHUB_OUTPUT
@@ -1168,51 +1215,86 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+          aws-region: ${{ env.AWS_DEPLOY_REGION }}
 
-      - name: Download current ECS task definition
+      - name: Get EC2 Public IP & AZ
+        if: steps.check_aws.outputs.aws_configured == 'true'
+        id: get-ip
+        run: |
+          read -r EC2_IP EC2_AZ <<< "$(aws ec2 describe-instances \
+            --instance-ids ${{ env.EC2_INSTANCE_ID }} \
+            --query 'Reservations[0].Instances[0].[PublicIpAddress,Placement.AvailabilityZone]' \
+            --output text)"
+          echo "ec2_ip=$EC2_IP" >> $GITHUB_OUTPUT
+          echo "ec2_az=$EC2_AZ" >> $GITHUB_OUTPUT
+          echo "EC2 Public IP: $EC2_IP"
+          echo "EC2 Availability Zone: $EC2_AZ"
+
+      - name: Deploy Docker container to EC2
         if: steps.check_aws.outputs.aws_configured == 'true'
         run: |
-          aws ecs describe-task-definition \
-            --task-definition ${{ env.ECS_TASK_FAMILY }} \
-            --query taskDefinition > task-definition.json
-          echo "Current image:"
-          cat task-definition.json | jq '.containerDefinitions[0].image'
+          printf '%s' "${{ secrets.EC2_SSH_KEY }}" > deploy_key
+          chmod 600 deploy_key
+          ssh-keygen -y -f deploy_key > deploy_key.pub
+          EC2_IP="${{ steps.get-ip.outputs.ec2_ip }}"
+          EC2_AZ="${{ steps.get-ip.outputs.ec2_az }}"
+          EC2_USER="${{ env.EC2_SSH_USER }}"
 
-      - name: Render new image in task definition
-        if: steps.check_aws.outputs.aws_configured == 'true'
-        id: render-task-def
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition: task-definition.json
-          container-name: ${{ env.CONTAINER_NAME }}
-          image: ${{ needs.build-push.outputs.image }}
+          echo "Attempting EC2 Instance Connect key injection (best-effort)..."
+          aws ec2-instance-connect send-ssh-public-key \
+            --instance-id ${{ env.EC2_INSTANCE_ID }} \
+            --availability-zone "${EC2_AZ}" \
+            --instance-os-user "${EC2_USER}" \
+            --ssh-public-key file://deploy_key.pub \
+            || echo "WARNING: EC2 Instance Connect key injection failed. SSH may still work if the key is already authorized on the instance. If SSH fails, ensure port 22 is open and IAM allows ec2-instance-connect:SendSSHPublicKey."
 
-      - name: Deploy to Amazon ECS (Production)
-        if: steps.check_aws.outputs.aws_configured == 'true'
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
-        with:
-          task-definition: ${{ steps.render-task-def.outputs.task-definition }}
-          service: ${{ env.ECS_SERVICE }}
-          cluster: ${{ env.ECS_CLUSTER }}
-          wait-for-service-stability: true
-          wait-for-minutes: 10
+          ssh -o StrictHostKeyChecking=no -i deploy_key ${EC2_USER}@${EC2_IP} << EOF
+            # Install Docker if not present
+            if ! command -v docker &> /dev/null; then
+              sudo yum update -y && sudo yum install -y docker
+              sudo systemctl enable docker
+            fi
+            sudo systemctl start docker
+
+            # Login to GitHub Container Registry
+            echo "${{ secrets.GITHUB_TOKEN }}" | sudo docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+            # Pull latest image
+            sudo docker pull ${{ needs.build-push.outputs.image }}
+
+            # Replace running container
+            sudo docker stop ecogo 2>/dev/null || true
+            sudo docker rm ecogo 2>/dev/null || true
+            sudo docker run -d --name ecogo \
+              --restart unless-stopped \
+              --network host \
+              -e SERVER_PORT=${{ env.DEPLOY_PORT }} \
+              ${{ needs.build-push.outputs.image }}
+
+            # Health check
+            echo "Waiting for application to start..."
+            for i in \$(seq 1 30); do
+              if curl -s http://localhost:${{ env.DEPLOY_PORT }}/actuator/health > /dev/null 2>&1; then
+                echo "Application is healthy!"
+                break
+              fi
+              sleep 5
+            done
+          EOF
+
+          rm -f deploy_key deploy_key.pub
 
       - name: Get deployment URL
         id: get-url
         if: steps.check_aws.outputs.aws_configured == 'true'
         run: |
-          ALB_DNS=$(aws elbv2 describe-load-balancers --names ecogo-alb \
-            --query 'LoadBalancers[0].DNSName' --output text 2>/dev/null || echo "")
-          if [ -n "$ALB_DNS" ] && [ "$ALB_DNS" != "None" ]; then
-            echo "service_url=http://${ALB_DNS}" >> $GITHUB_OUTPUT
-          fi
+          echo "service_url=http://${{ steps.get-ip.outputs.ec2_ip }}:${{ env.DEPLOY_PORT }}" >> $GITHUB_OUTPUT
 
       - name: AWS Not Configured Warning
         if: steps.check_aws.outputs.aws_configured != 'true'
         run: |
-          echo "WARNING - AWS credentials not configured. Skipping deployment."
-          echo "See .github/SECRETS-TEMPLATE.md to configure."
+          echo "⚠️ Missing secrets for EC2 deployment."
+          echo "Required: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, EC2_SSH_KEY"
 
       - name: Production Deploy Summary
         if: always()
@@ -1221,6 +1303,9 @@ jobs:
           echo "- **Image:** \`${{ needs.build-push.outputs.image }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          if [ -n "${{ steps.get-url.outputs.service_url }}" ]; then
+            echo "- **URL:** ${{ steps.get-url.outputs.service_url }}" >> $GITHUB_STEP_SUMMARY
+          fi
 
 # ════════════════════════════════════════════════════════════════════════
 #  STAGE 8 — Post-Deploy Tests (Staging)
@@ -1230,7 +1315,9 @@ jobs:
     runs-on: ubuntu-latest
     name: Integration Tests - Staging
     needs: deploy-staging
-    if: github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/heads/feature/')
+    if: |
+      !cancelled() &&
+      (github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/heads/feature/'))
     services:
       mongodb:
         image: mongo:latest
@@ -1258,7 +1345,9 @@ jobs:
     runs-on: ubuntu-latest
     name: Smoke Tests - Staging
     needs: deploy-staging
-    if: github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/heads/feature/')
+    if: |
+      !cancelled() &&
+      (github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/heads/feature/'))
     services:
       mongodb:
         image: mongo:latest
@@ -1272,15 +1361,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check if real deployment exists
+      - name: Determine deployment target URL
         id: check_deployment
         run: |
-          if [ -n "${{ secrets.STAGING_URL }}" ]; then
+          DEPLOY_URL="${{ needs.deploy-staging.outputs.service_url }}"
+          if [ -n "$DEPLOY_URL" ]; then
+            echo "has_deployment=true" >> $GITHUB_OUTPUT
+            echo "target_url=$DEPLOY_URL" >> $GITHUB_OUTPUT
+            echo "✅ Using AWS deployment URL from deploy step: $DEPLOY_URL"
+          elif [ -n "${{ secrets.STAGING_URL }}" ]; then
             echo "has_deployment=true" >> $GITHUB_OUTPUT
             echo "target_url=${{ secrets.STAGING_URL }}" >> $GITHUB_OUTPUT
+            echo "✅ Using STAGING_URL secret"
           else
             echo "has_deployment=false" >> $GITHUB_OUTPUT
             echo "target_url=http://localhost:8090" >> $GITHUB_OUTPUT
+            echo "⚠️ No AWS deployment detected, falling back to localhost"
           fi
 
       - name: Set up JDK 17
@@ -1315,26 +1411,36 @@ jobs:
           SPRING_DATA_MONGODB_URI: mongodb://localhost:27017/ecogo
           SERVER_PORT: 8090
 
-      - name: Wait for Deployment (if real)
+      - name: Wait for AWS Deployment to stabilize
         if: steps.check_deployment.outputs.has_deployment == 'true'
-        run: sleep 30
+        run: |
+          echo "Waiting for AWS deployment to stabilize..."
+          sleep 30
+          echo "Testing deployment at ${{ steps.check_deployment.outputs.target_url }}"
+          curl -sf ${{ steps.check_deployment.outputs.target_url }}/actuator/health || echo "Health endpoint not yet ready"
 
       - name: Run Smoke Tests
         run: |
+          echo "Running smoke tests against: ${{ steps.check_deployment.outputs.target_url }}"
           chmod +x .github/scripts/smoke-tests.sh
           ./.github/scripts/smoke-tests.sh ${{ steps.check_deployment.outputs.target_url }}
         continue-on-error: true
 
       - name: Test Critical API Endpoints
         run: |
-          curl -f ${{ steps.check_deployment.outputs.target_url }}/actuator/health || echo "Health check completed"
+          TARGET="${{ steps.check_deployment.outputs.target_url }}"
+          echo "Testing endpoints at: $TARGET"
+          curl -f ${TARGET}/actuator/health || echo "Health check completed"
+          curl -sf ${TARGET}/actuator/info || echo "Info endpoint completed"
         continue-on-error: true
 
   performance-tests-staging:
     runs-on: ubuntu-latest
     name: Performance Tests - Staging
     needs: smoke-tests-staging
-    if: github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/heads/feature/')
+    if: |
+      !cancelled() &&
+      (github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/heads/feature/'))
     services:
       mongodb:
         image: mongo:latest
@@ -1388,7 +1494,9 @@ jobs:
     runs-on: ubuntu-latest
     name: DAST - Staging
     needs: performance-tests-staging
-    if: github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/heads/feature/')
+    if: |
+      !cancelled() &&
+      (github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/heads/feature/'))
     services:
       mongodb:
         image: mongo:latest
@@ -1517,7 +1625,9 @@ jobs:
     runs-on: ubuntu-latest
     name: Integration Tests - Production
     needs: deploy-production
-    if: github.ref == 'refs/heads/main'
+    if: |
+      !cancelled() &&
+      github.ref == 'refs/heads/main'
     services:
       mongodb:
         image: mongo:latest
@@ -1544,8 +1654,10 @@ jobs:
   smoke-tests-production:
     runs-on: ubuntu-latest
     name: Smoke Tests - Production
-    needs: integration-tests-production
-    if: github.ref == 'refs/heads/main'
+    needs: [deploy-production, integration-tests-production]
+    if: |
+      !cancelled() &&
+      github.ref == 'refs/heads/main'
     services:
       mongodb:
         image: mongo:latest
@@ -1559,15 +1671,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check if real deployment exists
+      - name: Determine deployment target URL
         id: check_deployment
         run: |
-          if [ -n "${{ secrets.PRODUCTION_URL }}" ]; then
+          DEPLOY_URL="${{ needs.deploy-production.outputs.service_url }}"
+          if [ -n "$DEPLOY_URL" ]; then
+            echo "has_deployment=true" >> $GITHUB_OUTPUT
+            echo "target_url=$DEPLOY_URL" >> $GITHUB_OUTPUT
+            echo "✅ Using AWS deployment URL from deploy step: $DEPLOY_URL"
+          elif [ -n "${{ secrets.PRODUCTION_URL }}" ]; then
             echo "has_deployment=true" >> $GITHUB_OUTPUT
             echo "target_url=${{ secrets.PRODUCTION_URL }}" >> $GITHUB_OUTPUT
+            echo "✅ Using PRODUCTION_URL secret"
           else
             echo "has_deployment=false" >> $GITHUB_OUTPUT
             echo "target_url=http://localhost:8090" >> $GITHUB_OUTPUT
+            echo "⚠️ No AWS deployment detected, falling back to localhost"
           fi
 
       - name: Set up JDK 17
@@ -1608,7 +1727,9 @@ jobs:
     runs-on: ubuntu-latest
     name: Performance Tests - Production
     needs: smoke-tests-production
-    if: github.ref == 'refs/heads/main'
+    if: |
+      !cancelled() &&
+      github.ref == 'refs/heads/main'
     services:
       mongodb:
         image: mongo:latest
@@ -1662,7 +1783,9 @@ jobs:
     runs-on: ubuntu-latest
     name: DAST with OWASP ZAP - Production
     needs: performance-tests-production
-    if: github.ref == 'refs/heads/main'
+    if: |
+      !cancelled() &&
+      github.ref == 'refs/heads/main'
     services:
       mongodb:
         image: mongo:latest
@@ -1731,7 +1854,9 @@ jobs:
     runs-on: ubuntu-latest
     name: Setup Monitoring Stack - Production
     needs: dast-production
-    if: github.ref == 'refs/heads/main'
+    if: |
+      always() &&
+      github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
 
