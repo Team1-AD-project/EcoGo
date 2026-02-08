@@ -228,13 +228,13 @@ jobs:
           distribution: 'temurin'
           cache: maven
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: java
       - name: Build Java for CodeQL
         run: mvn clean compile -DskipTests -Dcheckstyle.skip=true -Dspotbugs.skip=true
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           category: "/language:java"
 
@@ -250,11 +250,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: javascript
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           category: "/language:javascript"
 
@@ -270,11 +270,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: python
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           category: "/language:python"
 
@@ -308,7 +308,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload Trivy FS Results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: trivy-fs-results.sarif
@@ -800,6 +800,7 @@ jobs:
       needs.build-push.result == 'success'
     permissions:
       security-events: write
+      packages: read
     steps:
       - uses: actions/checkout@v4
 
@@ -830,7 +831,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload Trivy Container Results
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: trivy-container-results.sarif
