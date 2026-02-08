@@ -27,7 +27,7 @@ public class TripDto {
         public String detectedMode; // ML识别的主要交通方式
         public double mlConfidence; // ML置信度
         public boolean isGreenTrip; // 是否绿色出行
-        public double carbonSaved; // 碳减排量(g) - Changed to double
+        public double carbonSaved; // 碳减排量(kg)
     }
 
     // === Sub DTOs ===
