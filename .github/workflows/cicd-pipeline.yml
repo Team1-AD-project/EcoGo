@@ -1147,17 +1147,41 @@ jobs:
 
       - name: Inject SSH key via EC2 Instance Connect
         if: steps.check_aws.outputs.aws_configured == 'true' && steps.get-ip.outcome == 'success'
+        id: inject-key
         run: |
+          # ── [DIAG H2] SSH Key diagnostics ──
+          echo "::group::[DIAG] SSH Key Diagnostics"
           printenv SSH_KEY > deploy_key
           chmod 600 deploy_key
-          ssh-keygen -y -f deploy_key > deploy_key.pub
+          echo "[DIAG-H2] deploy_key size: $(wc -c < deploy_key) bytes"
+          echo "[DIAG-H2] deploy_key first line: $(head -1 deploy_key)"
+          echo "[DIAG-H2] deploy_key last line: $(tail -1 deploy_key)"
+          echo "[DIAG-H2] deploy_key line count: $(wc -l < deploy_key)"
 
-          echo "Injecting SSH public key via EC2 Instance Connect..."
-          aws ec2-instance-connect send-ssh-public-key \
+          echo "[DIAG-H2] Generating public key from private key..."
+          ssh-keygen -y -f deploy_key > deploy_key.pub 2>&1 && echo "[DIAG-H2] ssh-keygen: SUCCESS" || { echo "[DIAG-H2] ssh-keygen: FAILED"; exit 1; }
+          echo "[DIAG-H2] Public key: $(cat deploy_key.pub)"
+          echo "::endgroup::"
+
+          # ── [DIAG H1/H4] EC2 Instance Connect injection ──
+          echo "::group::[DIAG] EC2 Instance Connect"
+          echo "[DIAG-H1] Instance ID: ${{ env.EC2_INSTANCE_ID }}"
+          echo "[DIAG-H1] AZ: ${{ steps.get-ip.outputs.ec2_az }}"
+          echo "[DIAG-H4] OS User: ${{ env.EC2_SSH_USER }}"
+          echo "[DIAG-H1] Calling send-ssh-public-key..."
+          INJECT_OUTPUT=$(aws ec2-instance-connect send-ssh-public-key \
             --instance-id ${{ env.EC2_INSTANCE_ID }} \
             --availability-zone "${{ steps.get-ip.outputs.ec2_az }}" \
             --instance-os-user "${{ env.EC2_SSH_USER }}" \
-            --ssh-public-key file://deploy_key.pub
+            --ssh-public-key file://deploy_key.pub 2>&1) && INJECT_RC=$? || INJECT_RC=$?
+          echo "[DIAG-H1] Exit code: ${INJECT_RC}"
+          echo "[DIAG-H1] Output: ${INJECT_OUTPUT}"
+          echo "::endgroup::"
+
+          if [ "${INJECT_RC}" -ne 0 ]; then
+            echo "::error::EC2 Instance Connect FAILED (exit ${INJECT_RC}): ${INJECT_OUTPUT}"
+            exit 1
+          fi
           echo "Key injected (valid ~60s). Proceeding to deploy..."
         env:
           SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
@@ -1168,6 +1192,13 @@ jobs:
           EC2_IP="${{ steps.get-ip.outputs.ec2_ip }}"
           EC2_USER="${{ env.EC2_SSH_USER }}"
           echo "Deploying to ${EC2_USER}@${EC2_IP}..."
+
+          # ── [DIAG H3/H5] Verbose SSH to see exact auth failure reason ──
+          echo "::group::[DIAG] SSH verbose connection test"
+          echo "[DIAG] deploy_key exists: $(test -f deploy_key && echo YES || echo NO)"
+          echo "[DIAG] deploy_key.pub exists: $(test -f deploy_key.pub && echo YES || echo NO)"
+          ssh -vvv -o StrictHostKeyChecking=no -o ConnectTimeout=15 -i deploy_key ${EC2_USER}@${EC2_IP} "echo SSH_CONNECTION_OK" 2>&1 | tail -40 || echo "[DIAG-H3/H5] SSH verbose test FAILED (this is expected if auth fails, check lines above)"
+          echo "::endgroup::"
 
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i deploy_key ${EC2_USER}@${EC2_IP} << 'DEPLOY_EOF'
             # Install Docker if not present
