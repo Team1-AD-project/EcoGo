@@ -54,6 +54,9 @@ public class ActivityImplementation implements ActivityInterface {
         if (activity.getMaxParticipants() != null) existing.setMaxParticipants(activity.getMaxParticipants());
         if (activity.getStartTime() != null) existing.setStartTime(activity.getStartTime());
         if (activity.getEndTime() != null) existing.setEndTime(activity.getEndTime());
+        if (activity.getLatitude() != null) existing.setLatitude(activity.getLatitude());
+        if (activity.getLongitude() != null) existing.setLongitude(activity.getLongitude());
+        if (activity.getLocationName() != null) existing.setLocationName(activity.getLocationName());
         existing.setUpdatedAt(LocalDateTime.now());
 
         return activityRepository.save(existing);
