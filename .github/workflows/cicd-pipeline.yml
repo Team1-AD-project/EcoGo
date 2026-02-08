@@ -795,6 +795,9 @@ jobs:
     runs-on: ubuntu-latest
     name: Container Image Scan (Trivy) - main
     needs: build-push
+    if: |
+      !cancelled() &&
+      needs.build-push.result == 'success'
     permissions:
       security-events: write
     steps:
@@ -842,6 +845,7 @@ jobs:
     runs-on: ubuntu-latest
     name: "IAST (OpenTelemetry runtime \u2013 open source)"
     needs: container-scan
+    if: "!cancelled()"
     services:
       mongodb:
         image: mongo:latest
@@ -923,6 +927,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Performance (k6) - optional
     needs: container-scan
+    if: "!cancelled()"
     services:
       mongodb:
         image: mongo:latest
@@ -980,6 +985,7 @@ jobs:
     runs-on: ubuntu-latest
     name: DAST (OWASP ZAP) - optional
     needs: container-scan
+    if: "!cancelled()"
     services:
       mongodb:
         image: mongo:latest
@@ -1104,59 +1110,58 @@ jobs:
           echo "EC2 Public IP: $EC2_IP"
           echo "EC2 Availability Zone: $EC2_AZ"
 
+      - name: Write SSH key
+        if: steps.check_aws.outputs.aws_configured == 'true'
+        run: |
+          printenv SSH_KEY > deploy_key
+          chmod 600 deploy_key
+          echo "--- SSH Key Diagnostics ---"
+          echo "Key file size: $(wc -c < deploy_key) bytes"
+          echo "Key line count: $(wc -l < deploy_key) lines"
+          head -1 deploy_key
+          tail -1 deploy_key
+          echo "--- End Diagnostics ---"
+        env:
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+
       - name: Deploy Docker container to EC2
         if: steps.check_aws.outputs.aws_configured == 'true'
         run: |
-          printf '%s' "${{ secrets.EC2_SSH_KEY }}" > deploy_key
-          chmod 600 deploy_key
-          ssh-keygen -y -f deploy_key > deploy_key.pub
           EC2_IP="${{ steps.get-ip.outputs.ec2_ip }}"
-          EC2_AZ="${{ steps.get-ip.outputs.ec2_az }}"
-          EC2_USER="${{ env.EC2_SSH_USER }}"
 
-          echo "Attempting EC2 Instance Connect key injection (best-effort)..."
-          aws ec2-instance-connect send-ssh-public-key \
-            --instance-id ${{ env.EC2_INSTANCE_ID }} \
-            --availability-zone "${EC2_AZ}" \
-            --instance-os-user "${EC2_USER}" \
-            --ssh-public-key file://deploy_key.pub \
-            || echo "WARNING: EC2 Instance Connect key injection failed. SSH may still work if the key is already authorized on the instance. If SSH fails, ensure port 22 is open and IAM allows ec2-instance-connect:SendSSHPublicKey."
-
-          ssh -o StrictHostKeyChecking=no -i deploy_key ${EC2_USER}@${EC2_IP} << EOF
+          ssh -o StrictHostKeyChecking=no -i deploy_key ec2-user@${EC2_IP} << 'DEPLOY_EOF'
             # Install Docker if not present
             if ! command -v docker &> /dev/null; then
               sudo yum update -y && sudo yum install -y docker
               sudo systemctl enable docker
             fi
             sudo systemctl start docker
+          DEPLOY_EOF
 
-            # Login to GitHub Container Registry
-            echo "${{ secrets.GITHUB_TOKEN }}" | sudo docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          # Docker login & deploy (separate SSH to avoid heredoc variable issues)
+          ssh -o StrictHostKeyChecking=no -i deploy_key ec2-user@${EC2_IP} \
+            "echo '${{ secrets.GITHUB_TOKEN }}' | sudo docker login ghcr.io -u '${{ github.actor }}' --password-stdin && \
+             sudo docker pull ${{ needs.build-push.outputs.image }} && \
+             sudo docker stop ecogo 2>/dev/null; sudo docker rm ecogo 2>/dev/null; \
+             sudo docker run -d --name ecogo \
+               --restart unless-stopped \
+               --network host \
+               -e SERVER_PORT=${{ env.DEPLOY_PORT }} \
+               ${{ needs.build-push.outputs.image }}"
 
-            # Pull latest image
-            sudo docker pull ${{ needs.build-push.outputs.image }}
+          # Health check via SSH
+          echo "Waiting for application to start..."
+          for i in $(seq 1 30); do
+            if ssh -o StrictHostKeyChecking=no -i deploy_key ec2-user@${EC2_IP} \
+              "curl -s http://localhost:${{ env.DEPLOY_PORT }}/actuator/health" 2>/dev/null | grep -q "UP"; then
+              echo "Application is healthy!"
+              break
+            fi
+            echo "Waiting... ($i/30)"
+            sleep 5
+          done
 
-            # Replace running container
-            sudo docker stop ecogo 2>/dev/null || true
-            sudo docker rm ecogo 2>/dev/null || true
-            sudo docker run -d --name ecogo \
-              --restart unless-stopped \
-              --network host \
-              -e SERVER_PORT=${{ env.DEPLOY_PORT }} \
-              ${{ needs.build-push.outputs.image }}
-
-            # Health check
-            echo "Waiting for application to start..."
-            for i in \$(seq 1 30); do
-              if curl -s http://localhost:${{ env.DEPLOY_PORT }}/actuator/health > /dev/null 2>&1; then
-                echo "Application is healthy!"
-                break
-              fi
-              sleep 5
-            done
-          EOF
-
-          rm -f deploy_key deploy_key.pub
+          rm -f deploy_key
 
       - name: Get deployment URL
         id: get-url
@@ -1231,59 +1236,58 @@ jobs:
           echo "EC2 Public IP: $EC2_IP"
           echo "EC2 Availability Zone: $EC2_AZ"
 
+      - name: Write SSH key
+        if: steps.check_aws.outputs.aws_configured == 'true'
+        run: |
+          printenv SSH_KEY > deploy_key
+          chmod 600 deploy_key
+          echo "--- SSH Key Diagnostics ---"
+          echo "Key file size: $(wc -c < deploy_key) bytes"
+          echo "Key line count: $(wc -l < deploy_key) lines"
+          head -1 deploy_key
+          tail -1 deploy_key
+          echo "--- End Diagnostics ---"
+        env:
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+
       - name: Deploy Docker container to EC2
         if: steps.check_aws.outputs.aws_configured == 'true'
         run: |
-          printf '%s' "${{ secrets.EC2_SSH_KEY }}" > deploy_key
-          chmod 600 deploy_key
-          ssh-keygen -y -f deploy_key > deploy_key.pub
           EC2_IP="${{ steps.get-ip.outputs.ec2_ip }}"
-          EC2_AZ="${{ steps.get-ip.outputs.ec2_az }}"
-          EC2_USER="${{ env.EC2_SSH_USER }}"
 
-          echo "Attempting EC2 Instance Connect key injection (best-effort)..."
-          aws ec2-instance-connect send-ssh-public-key \
-            --instance-id ${{ env.EC2_INSTANCE_ID }} \
-            --availability-zone "${EC2_AZ}" \
-            --instance-os-user "${EC2_USER}" \
-            --ssh-public-key file://deploy_key.pub \
-            || echo "WARNING: EC2 Instance Connect key injection failed. SSH may still work if the key is already authorized on the instance. If SSH fails, ensure port 22 is open and IAM allows ec2-instance-connect:SendSSHPublicKey."
-
-          ssh -o StrictHostKeyChecking=no -i deploy_key ${EC2_USER}@${EC2_IP} << EOF
+          ssh -o StrictHostKeyChecking=no -i deploy_key ec2-user@${EC2_IP} << 'DEPLOY_EOF'
             # Install Docker if not present
             if ! command -v docker &> /dev/null; then
               sudo yum update -y && sudo yum install -y docker
               sudo systemctl enable docker
             fi
             sudo systemctl start docker
+          DEPLOY_EOF
 
-            # Login to GitHub Container Registry
-            echo "${{ secrets.GITHUB_TOKEN }}" | sudo docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          # Docker login & deploy
+          ssh -o StrictHostKeyChecking=no -i deploy_key ec2-user@${EC2_IP} \
+            "echo '${{ secrets.GITHUB_TOKEN }}' | sudo docker login ghcr.io -u '${{ github.actor }}' --password-stdin && \
+             sudo docker pull ${{ needs.build-push.outputs.image }} && \
+             sudo docker stop ecogo 2>/dev/null; sudo docker rm ecogo 2>/dev/null; \
+             sudo docker run -d --name ecogo \
+               --restart unless-stopped \
+               --network host \
+               -e SERVER_PORT=${{ env.DEPLOY_PORT }} \
+               ${{ needs.build-push.outputs.image }}"
 
-            # Pull latest image
-            sudo docker pull ${{ needs.build-push.outputs.image }}
+          # Health check via SSH
+          echo "Waiting for application to start..."
+          for i in $(seq 1 30); do
+            if ssh -o StrictHostKeyChecking=no -i deploy_key ec2-user@${EC2_IP} \
+              "curl -s http://localhost:${{ env.DEPLOY_PORT }}/actuator/health" 2>/dev/null | grep -q "UP"; then
+              echo "Application is healthy!"
+              break
+            fi
+            echo "Waiting... ($i/30)"
+            sleep 5
+          done
 
-            # Replace running container
-            sudo docker stop ecogo 2>/dev/null || true
-            sudo docker rm ecogo 2>/dev/null || true
-            sudo docker run -d --name ecogo \
-              --restart unless-stopped \
-              --network host \
-              -e SERVER_PORT=${{ env.DEPLOY_PORT }} \
-              ${{ needs.build-push.outputs.image }}
-
-            # Health check
-            echo "Waiting for application to start..."
-            for i in \$(seq 1 30); do
-              if curl -s http://localhost:${{ env.DEPLOY_PORT }}/actuator/health > /dev/null 2>&1; then
-                echo "Application is healthy!"
-                break
-              fi
-              sleep 5
-            done
-          EOF
-
-          rm -f deploy_key deploy_key.pub
+          rm -f deploy_key
 
       - name: Get deployment URL
         id: get-url
