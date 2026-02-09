@@ -8,22 +8,39 @@
 - 错误信息：`"Internal server error, please try again later"`
 
 ### 根本原因
-MongoDB 数据库中部分 Trip 记录的 `transport_modes` 字段存储格式错误：
+MongoDB 数据库中部分 Trip 记录存在两种数据格式错误：
+
+#### 第一次修复（2026-02-09 11:00）
+`transport_modes` 字段存储格式错误：
 - **错误格式**：JSON 字符串数组 `["{"mode":"walk",...}", ...]`
 - **正确格式**：对象数组 `[{mode:"walk",...}, ...]`
 
+#### 第二次修复（2026-02-09 17:30）
+`polyline_points` 字段存储格式错误：
+- **错误格式**：JSON 字符串数组 `["{"lng":114.18,"lat":22.34}", ...]`
+- **正确格式**：对象数组 `[{lng:114.18,lat:22.34}, ...]`
+
 ### 错误堆栈
+
+**错误 1 - transport_modes：**
 ```
 org.springframework.core.convert.ConverterNotFoundException:
 No converter found capable of converting from type [java.lang.String]
 to type [com.example.EcoGo.model.Trip$TransportSegment]
 ```
 
+**错误 2 - polyline_points：**
+```
+org.springframework.core.convert.ConverterNotFoundException:
+No converter found capable of converting from type [java.lang.String]
+to type [com.example.EcoGo.model.Trip$GeoPoint]
+```
+
 ## 解决方案
 
 ### 数据修复脚本
-在 MongoDB 中执行以下脚本修复损坏的数据：
 
+#### 脚本 1：修复 transport_modes（已完成）
 ```javascript
 var count = 0;
 db.trips.find({transport_modes: {$type: "string"}}).forEach(function(doc) {
@@ -45,9 +62,32 @@ db.trips.find({transport_modes: {$type: "string"}}).forEach(function(doc) {
 print("Fixed " + count + " trip records");
 ```
 
+#### 脚本 2：修复 polyline_points（已完成）
+```javascript
+var count = 0;
+db.trips.find({polyline_points: {$type: "string"}}).forEach(function(doc) {
+  if (doc.polyline_points && Array.isArray(doc.polyline_points)) {
+    var fixed = doc.polyline_points.map(function(item) {
+      if (typeof item === "string") {
+        try {
+          return JSON.parse(item);
+        } catch(e) {
+          return item;
+        }
+      }
+      return item;
+    });
+    db.trips.updateOne({_id: doc._id}, {$set: {polyline_points: fixed}});
+    count++;
+  }
+});
+print("Fixed " + count + " trip records with string polyline_points");
+```
+
 ### 修复结果
-- 修复了 **2 条** 损坏的 Trip 记录
-- 所有 Trip 记录的 `transport_modes` 字段现在格式统一
+- **第一次修复**：修复了 **2 条** transport_modes 字段损坏的记录
+- **第二次修复**：修复了 **3 条** polyline_points 字段损坏的记录
+- 所有 Trip 记录的字段现在格式统一
 
 ## 预防措施
 
@@ -59,7 +99,47 @@ print("Fixed " + count + " trip records");
 ### 监控
 定期检查是否有新的格式错误数据：
 ```javascript
+// 检查 transport_modes
 db.trips.find({transport_modes: {$type: "string"}}).count()
+
+// 检查 polyline_points
+db.trips.find({polyline_points: {$type: "string"}}).count()
+
+// 一键检查所有字段
+db.trips.aggregate([
+  {
+    $project: {
+      hasStringTransportModes: {
+        $cond: [
+          {$and: [
+            {$isArray: "$transport_modes"},
+            {$eq: [{$type: {$arrayElemAt: ["$transport_modes", 0]}}, "string"]}
+          ]},
+          true,
+          false
+        ]
+      },
+      hasStringPolylinePoints: {
+        $cond: [
+          {$and: [
+            {$isArray: "$polyline_points"},
+            {$eq: [{$type: {$arrayElemAt: ["$polyline_points", 0]}}, "string"]}
+          ]},
+          true,
+          false
+        ]
+      }
+    }
+  },
+  {
+    $match: {
+      $or: [
+        {hasStringTransportModes: true},
+        {hasStringPolylinePoints: true}
+      ]
+    }
+  }
+]).toArray()
 ```
 
 ## 影响范围
