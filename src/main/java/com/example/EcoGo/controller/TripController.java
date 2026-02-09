@@ -127,7 +127,7 @@ public class TripController {
      * Get all available transport mode strings
      * GET /api/v1/mobile/trips/transport-modes
      */
-    @GetMapping("/api/v1/mobile/trips/transport-modes")
+    @GetMapping("/api/v1/trips/transport-modes")
     public ResponseMessage<List<String>> getAllTransportModes() {
         List<String> modes = transportModeRepository.findAll().stream()
                 .map(TransportMode::getMode)
