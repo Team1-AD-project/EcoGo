@@ -12,18 +12,26 @@ import com.example.EcoGo.repository.TripRepository;
 import com.example.EcoGo.repository.UserRepository;
 import com.example.EcoGo.model.TransportMode;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.example.EcoGo.interfacemethods.VipSwitchService;
 import com.example.EcoGo.model.User;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 @Transactional
 public class TripServiceImpl implements TripService {
+
+    private static final Logger log = LoggerFactory.getLogger(TripServiceImpl.class);
 
     @Autowired
     private VipSwitchService vipSwitchService;
@@ -39,6 +47,9 @@ public class TripServiceImpl implements TripService {
 
     @Autowired
     private PointsService pointsService;
+
+    @Autowired
+    private MongoTemplate mongoTemplate;
 
     @Override
     public Trip startTrip(String userId, TripDto.StartTripRequest request) {
@@ -192,16 +203,46 @@ public class TripServiceImpl implements TripService {
 
     @Override
     public List<TripDto.TripSummaryResponse> getAllTrips() {
-        return tripRepository.findAll().stream()
-                .map(this::convertToSummary)
-                .collect(Collectors.toList());
+        List<Trip> allTrips;
+        try {
+            // Use tripRepository (Spring Data handles @Field mapping correctly)
+            allTrips = tripRepository.findAll();
+        } catch (Exception e) {
+            log.error("[getAllTrips] Failed to fetch trips from DB: {}", e.getMessage(), e);
+            return new ArrayList<>();
+        }
+        log.info("[getAllTrips] Found {} trips in DB", allTrips.size());
+        List<TripDto.TripSummaryResponse> result = new ArrayList<>();
+        for (Trip trip : allTrips) {
+            try {
+                result.add(convertToSummary(trip));
+            } catch (Exception e) {
+                log.error("[getAllTrips] Failed to convert trip id={}: {}", trip.getId(), e.getMessage(), e);
+            }
+        }
+        return result;
     }
 
     @Override
     public List<TripDto.TripResponse> getTripsByUser(String userId) {
-        return tripRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
-                .map(this::convertToResponse)
-                .collect(Collectors.toList());
+        List<Trip> userTrips;
+        try {
+            // Use tripRepository (Spring Data handles @Field mapping correctly)
+            userTrips = tripRepository.findByUserIdOrderByCreatedAtDesc(userId);
+        } catch (Exception e) {
+            log.error("[getTripsByUser] Failed to fetch trips for userId={}: {}", userId, e.getMessage(), e);
+            return new ArrayList<>();
+        }
+        log.info("[getTripsByUser] Found {} trips for userId={}", userTrips.size(), userId);
+        List<TripDto.TripResponse> result = new ArrayList<>();
+        for (Trip trip : userTrips) {
+            try {
+                result.add(convertToResponse(trip));
+            } catch (Exception e) {
+                log.error("[getTripsByUser] Failed to convert trip id={} for userId={}: {}", trip.getId(), userId, e.getMessage(), e);
+            }
+        }
+        return result;
     }
 
     // --- Converters ---

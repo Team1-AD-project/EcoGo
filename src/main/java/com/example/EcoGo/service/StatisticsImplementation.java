@@ -9,6 +9,9 @@ import com.example.EcoGo.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
@@ -20,6 +23,8 @@ import java.util.stream.Collectors;
 @Service
 public class StatisticsImplementation implements StatisticsInterface {
 
+    private static final Logger log = LoggerFactory.getLogger(StatisticsImplementation.class);
+
     @Autowired
     private UserRepository userRepository;
     @Autowired
@@ -27,7 +32,29 @@ public class StatisticsImplementation implements StatisticsInterface {
 
     @Override
     public AnalyticsSummaryDto getManagementAnalytics(String timeRange) {
-        List<User> allUsers = userRepository.findAll();
+        log.info("[getManagementAnalytics] Called with timeRange={}", timeRange);
+        List<User> allUsers;
+        try {
+            allUsers = userRepository.findAll();
+        } catch (Exception e) {
+            log.error("[getManagementAnalytics] Failed to load users: {}", e.getMessage(), e);
+            AnalyticsSummaryDto empty = new AnalyticsSummaryDto();
+            empty.setTotalUsers(new AnalyticsSummaryDto.Metric(0, 0));
+            empty.setNewUsers(new AnalyticsSummaryDto.Metric(0, 0));
+            empty.setActiveUsers(new AnalyticsSummaryDto.Metric(0, 0));
+            empty.setTotalCarbonSaved(new AnalyticsSummaryDto.Metric(0, 0));
+            empty.setAverageCarbonPerUser(new AnalyticsSummaryDto.Metric(0, 0));
+            empty.setTotalRevenue(new AnalyticsSummaryDto.Metric(0, 0));
+            empty.setVipRevenue(new AnalyticsSummaryDto.Metric(0, 0));
+            empty.setShopRevenue(new AnalyticsSummaryDto.Metric(0, 0));
+            empty.setUserGrowthTrend(new ArrayList<>());
+            empty.setCarbonGrowthTrend(new ArrayList<>());
+            empty.setRevenueGrowthTrend(new ArrayList<>());
+            empty.setVipDistribution(new ArrayList<>());
+            empty.setCategoryRevenue(new ArrayList<>());
+            return empty;
+        }
+        log.info("[getManagementAnalytics] Loaded {} users", allUsers.size());
         List<User> nonAdminUsers = allUsers.stream().filter(u -> !u.isAdmin()).collect(Collectors.toList());
 
         AnalyticsSummaryDto summary = new AnalyticsSummaryDto();
