@@ -337,7 +337,7 @@ public class OrderServiceImpl implements OrderService {
 
             order.setPaymentStatus("PAID");
             if (order.getStatus() == null || order.getStatus().isEmpty()) {
-                order.setStatus("PENDING");
+                order.setStatus("COMPLETED");
             }
             order.setPaymentMethod("POINTS");
 
