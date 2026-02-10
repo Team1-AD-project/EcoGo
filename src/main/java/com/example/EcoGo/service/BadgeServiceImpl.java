@@ -127,7 +127,7 @@ public class BadgeServiceImpl implements BadgeService {
 
     // ... 其他 getter 方法 (getShopList, getMyBadges) 保持不变 ...
     public List<Badge> getShopList() {
-        return badgeRepository.findByIsActiveAndAcquisitionMethod(true, "purchase");
+        return badgeRepository.findByIsActive(true);
     }
 
     public List<UserBadge> getMyBadges(String userId) {
