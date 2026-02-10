@@ -99,10 +99,10 @@ public class OrderServiceImpl implements OrderService {
 
         // 设置默认状态
         if (order.getStatus() == null || order.getStatus().isEmpty()) {
-            order.setStatus("PENDING");
+            order.setStatus("COMPLETED");
         }
         if (order.getPaymentStatus() == null || order.getPaymentStatus().isEmpty()) {
-            order.setPaymentStatus("PENDING");
+            order.setPaymentStatus("COMPLETED");
         }
 
         return orderRepository.save(order);
@@ -336,9 +336,9 @@ public class OrderServiceImpl implements OrderService {
             order.setPointsUsed((int) totalPointsCost);
 
             order.setPaymentStatus("PAID");
-            if (order.getStatus() == null || order.getStatus().isEmpty()) {
-                order.setStatus("COMPLETED");
-            }
+           
+            order.setStatus("COMPLETED");
+            
             order.setPaymentMethod("POINTS");
 
             if (order.getOrderNumber() == null || order.getOrderNumber().isEmpty()) {
