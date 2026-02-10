@@ -5,7 +5,6 @@ import com.example.EcoGo.interfacemethods.VipSwitchService;
 import com.example.EcoGo.model.Goods;
 import com.example.EcoGo.model.Order;
 import com.example.EcoGo.model.User;
-import com.example.EcoGo.repository.GoodsRepository;
 import com.example.EcoGo.repository.OrderRepository;
 import com.example.EcoGo.repository.UserRepository;
 import com.example.EcoGo.repository.UserVoucherRepository;
@@ -30,13 +29,10 @@ import java.util.UUID;
 public class OrderServiceImpl implements OrderService {
 
     @Autowired
-    private VipSwitchServiceImpl vipSwitchService;
+    private VipSwitchService vipSwitchService;
 
     @Autowired
     private UserVoucherRepository userVoucherRepository;
-
-    @Autowired
-    private GoodsRepository goodsRepository;
 
     @Autowired
     private OrderRepository orderRepository;
@@ -70,7 +66,7 @@ public class OrderServiceImpl implements OrderService {
 
                 if (goods.getVipLevelRequired() != null && goods.getVipLevelRequired() == 1) {
                     if (!vipActive) {
-                        throw new RuntimeException("VIP_REQUIRED: " + item.getGoodsId());
+                        throw new BusinessException(ErrorCode.PARAM_ERROR, "VIP_REQUIRED: " + item.getGoodsId());
                     }
                 }
             }

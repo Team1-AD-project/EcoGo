@@ -209,23 +209,16 @@ public class GoodsController {
 
     // 8. 批量更新商品库存
     @PutMapping("/batch-stock")
-    public ResponseMessage<Void> batchUpdateStock(@RequestBody BatchStockUpdateRequest request) {
-        if (request == null) {
-            throw new BusinessException(ErrorCode.PARAM_CANNOT_BE_NULL, "request");
-        }
+public ResponseMessage<Void> batchUpdateStock(
+        @RequestBody(required = false) BatchStockUpdateRequest request) {
 
-        try {
-            goodsService.batchUpdateStock(request);
-            return new ResponseMessage<>(ErrorCode.SUCCESS.getCode(), ErrorCode.SUCCESS.getMessage(), null);
-        } catch (BusinessException be) {
-            throw be;
-        } catch (RuntimeException re) {
-            // 你原逻辑：RuntimeException => 400
-            throw new BusinessException(ErrorCode.PARAM_CANNOT_BE_NULL, re.getMessage());
-        } catch (Exception e) {
-            throw new BusinessException(ErrorCode.DB_ERROR);
-        }
+    if (request == null || request.getUpdates() == null || request.getUpdates().isEmpty()) {
+        throw new BusinessException(ErrorCode.PARAM_CANNOT_BE_NULL, "request body/updates");
     }
+
+    goodsService.batchUpdateStock(request);
+    return ResponseMessage.success(null);
+}
 
     // 9. Mobile端专用 - 获取可兑换商品
     @GetMapping("/mobile/redemption")
