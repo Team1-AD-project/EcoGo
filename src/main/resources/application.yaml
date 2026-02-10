@@ -1,0 +1,50 @@
+spring:
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/EcoGo #我现在本地部署得用localhost才行，所以就在我这个地方改成了这样
+      database: EcoGo
+
+logging:
+  level:
+    com.example.EcoGo: debug
+    org.springframework.data.mongodb: debug
+  file:
+    name: logs/eco-go.log
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+server:
+  port: 8090
+
+# Weather API configuration
+weather:
+  api:
+    key: fac4ae69bdf19368de7ee38add2460bf
+    url: https://api.openweathermap.org/data/2.5/weather
+# Actuator configuration for monitoring
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: always
+    metrics:
+      enabled: true
+    prometheus:
+      enabled: true
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: ${spring.application.name:EcoGo}
+
+# Application info
+info:
+  app:
+    name: EcoGo
+    description: Eco-friendly carbon tracking application
+    version: 1.0.0
