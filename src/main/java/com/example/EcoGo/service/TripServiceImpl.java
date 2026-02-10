@@ -12,9 +12,6 @@ import com.example.EcoGo.repository.TripRepository;
 import com.example.EcoGo.repository.UserRepository;
 import com.example.EcoGo.model.TransportMode;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.example.EcoGo.interfacemethods.VipSwitchService;
@@ -47,9 +44,6 @@ public class TripServiceImpl implements TripService {
 
     @Autowired
     private PointsService pointsService;
-
-    @Autowired
-    private MongoTemplate mongoTemplate;
 
     @Override
     public Trip startTrip(String userId, TripDto.StartTripRequest request) {
