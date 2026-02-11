@@ -1,6 +1,6 @@
-# EcoGo — Green Mobility Platform (Backend + Android + Web + Chatbot)
+# EcoGo — NUS Green Mobility & Engagement Platform (Backend + Android + Web + Chatbot)
 
-EcoGo is a green mobility platform that combines **trip tracking**, **eco-points & badges**, and an **AI chatbot** for Singapore localized green-travel Q&A and guided actions (e.g., trip booking / deep links / notifications).
+EcoGo is a **campus green mobility and engagement platform** designed around **NUS (National University of Singapore)** use cases. It combines **trip tracking**, **eco-points & rewards redemption**, **interactive maps & route planning**, **real-time campus shuttle info**, and an **AI chatbot assistant** to help users make greener travel choices and participate in campus-wide challenges.
 
 This repository contains:
 - **Java Backend** (`Backend/`): Spring Boot API, MongoDB persistence, JWT security, and an integrated mobile chatbot endpoint (RAG/tool orchestration supported).
@@ -10,13 +10,25 @@ This repository contains:
 
 ## Key Features
 
-- **User, points, badges, orders, activities** (Java backend)
-- **Trip APIs** (start/complete/cancel/history) and navigation history integration
+- **Green points, badges, and redemption**: earn points through green trips and redeem rewards (vouchers / goods / collectibles)
+- **Trips & map experience**: trip start/complete/history APIs, navigation history, route planning, and campus map UI
+- **Real-time campus shuttle**: NUS shuttle arrival data integration via **NUS NextBus API**
 - **Chatbot (mobile)**:
-  - Singapore green-travel **knowledge Q&A** with citations (RAG)
-  - Multi-intent orchestration (booking / bus queries / user update with RBAC + audit logs)
+  - NUS/Singapore green-travel **knowledge Q&A** with citations (RAG)
+  - Multi-intent orchestration (booking / bus queries / user/profile update with RBAC + audit logs)
   - UI actions for the app (suggestions / forms / confirmations / deep links)
-- **Observability & tooling**: health checks, logs, local test guide, monitoring stack (Prometheus/Grafana) and performance testing assets
+- **Engagement & community**: faculty leaderboards, activities, challenges, and shareable impact summaries
+- **Analytics & early warning**: management analytics dashboards and **user churn/traffic risk scoring** for support workflows
+- **Design & motion**: a campus mascot assistant (e.g., **LiNUS** lion) and interaction-focused UI patterns
+- **Observability & tooling**: health checks, logs, local test guide, monitoring stack (Prometheus/Grafana), performance testing assets
+
+## Integrations (Highlights)
+
+- **NUS NextBus API**: real shuttle arrival data provider (see `Backend/src/main/java/com/example/EcoGo/service/chatbot/NusBusProvider.java`)
+- **Google Maps API (scaffolded)**: Android project includes placeholder configuration and dependency stubs (currently commented/disabled in some builds for faster startup)
+- **Chatbot options**:
+  - Java backend integrated chatbot endpoint (RAG/tool orchestration)
+  - Optional Python FastAPI stack under `chatbot/` for RAG/model training/serving experiments
 
 ## Repository Structure
 
