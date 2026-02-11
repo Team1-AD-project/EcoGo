@@ -246,4 +246,99 @@ class ChatBookingServiceTest {
         assertTrue(result);
         verify(bookingRepository).save(argThat(b -> "cancelled".equals(b.getStatus())));
     }
+
+    // ---------- resolveCoordinates via reflection ----------
+    @Test
+    void resolveCoordinates_null_returnsDefault() throws Exception {
+        double[] coords = invokeResolveCoordinates(null);
+        assertNotNull(coords);
+        assertEquals(1.2966, coords[0], 0.001);
+        assertEquals(103.7764, coords[1], 0.001);
+    }
+
+    @Test
+    void resolveCoordinates_blank_returnsDefault() throws Exception {
+        double[] coords = invokeResolveCoordinates("   ");
+        assertEquals(1.2966, coords[0], 0.001);
+    }
+
+    @Test
+    void resolveCoordinates_exactMatch() throws Exception {
+        double[] coords = invokeResolveCoordinates("COM3");
+        assertEquals(1.2952, coords[0], 0.001);
+        assertEquals(103.7745, coords[1], 0.001);
+    }
+
+    @Test
+    void resolveCoordinates_caseInsensitive() throws Exception {
+        double[] coords = invokeResolveCoordinates("pgp");
+        assertEquals(1.2916, coords[0], 0.001);
+    }
+
+    @Test
+    void resolveCoordinates_partial() throws Exception {
+        // "Orchard" is a known key
+        double[] coords = invokeResolveCoordinates("Orchard Road");
+        // Should match "Orchard" via partial
+        assertNotNull(coords);
+    }
+
+    @Test
+    void resolveCoordinates_chinese() throws Exception {
+        double[] coords = invokeResolveCoordinates("大学城");
+        assertEquals(1.3048, coords[0], 0.001);
+    }
+
+    @Test
+    void resolveCoordinates_unknown_returnsDefault() throws Exception {
+        double[] coords = invokeResolveCoordinates("Timbuktu");
+        assertEquals(1.2966, coords[0], 0.001);
+        assertEquals(103.7764, coords[1], 0.001);
+    }
+
+    // ---------- createBooking with different locations ----------
+    @Test
+    void createBooking_chineseLocation() {
+        Trip trip = new Trip();
+        trip.setId("trip_cn");
+        when(tripService.startTrip(eq("u_001"), any(TripDto.StartTripRequest.class))).thenReturn(trip);
+
+        ChatBookingService.BookingResult result = chatBookingService.createBooking(
+                "u_001", "大学城", "滨海湾", "2026-02-11T10:00:00", 1);
+        assertNotNull(result);
+        assertEquals("trip_cn", result.tripId());
+    }
+
+    @Test
+    void createBooking_unknownLocation_usesDefault() {
+        Trip trip = new Trip();
+        trip.setId("trip_unk");
+        when(tripService.startTrip(eq("u_001"), any(TripDto.StartTripRequest.class))).thenReturn(trip);
+
+        ChatBookingService.BookingResult result = chatBookingService.createBooking(
+                "u_001", "Unknown Place", "Another Place", "2026-02-11T10:00:00", 1);
+        assertNotNull(result);
+    }
+
+    // ---------- BookingResult record ----------
+    @Test
+    void bookingResult_record() {
+        ChatBookingService.BookingResult r = new ChatBookingService.BookingResult("bk_1", "trip_1", "ecogo://trip/trip_1");
+        assertEquals("bk_1", r.bookingId());
+        assertEquals("trip_1", r.tripId());
+        assertEquals("ecogo://trip/trip_1", r.deeplink());
+    }
+
+    @Test
+    void bookingResult_nullTripId() {
+        ChatBookingService.BookingResult r = new ChatBookingService.BookingResult("bk_2", null, "ecogo://booking/bk_2");
+        assertNull(r.tripId());
+    }
+
+    // ---------- Helper ----------
+    private double[] invokeResolveCoordinates(String locationName) throws Exception {
+        java.lang.reflect.Method m = ChatBookingService.class.getDeclaredMethod("resolveCoordinates", String.class);
+        m.setAccessible(true);
+        return (double[]) m.invoke(chatBookingService, locationName);
+    }
 }

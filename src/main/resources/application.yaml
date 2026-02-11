@@ -19,7 +19,7 @@ server:
 # Weather API configuration
 weather:
   api:
-    key: fac4ae69bdf19368de7ee38add2460bf
+    key: ${WEATHER_API_KEY:}
     url: https://api.openweathermap.org/data/2.5/weather
 # Actuator configuration for monitoring
 management:
@@ -57,8 +57,8 @@ chatbot:
   # NUS NextBus API credentials (https://nnextbus.nus.edu.sg)
   # Override via env vars: CHATBOT_NUS_BUS_USERNAME / CHATBOT_NUS_BUS_PASSWORD
   nus-bus:
-    username: NUSnextbus
-    password: '13dL?zY,3feWR^"T'
+    username: ${CHATBOT_NUS_BUS_USERNAME:NUSnextbus}
+    password: ${CHATBOT_NUS_BUS_PASSWORD:}
 # Admin seeder
 app:
   admin:
