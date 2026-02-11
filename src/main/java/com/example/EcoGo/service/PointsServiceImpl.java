@@ -75,13 +75,13 @@ public class PointsServiceImpl implements PointsService {
 
         userRepository.save(user);
 
+        // 4. Create Log
+        String changeType = points > 0 ? "gain" : (points < 0 ? "deduct" : "info");
+
         // 检查是否有碳减排成就徽章可以自动解锁
         if (isTripSource && points > 0) {
             badgeService.checkAndUnlockCarbonBadges(userId);
         }
-
-        // 4. Create Log
-        String changeType = points > 0 ? "gain" : (points < 0 ? "deduct" : "info");
         // If source is REDEEM, type might be redeem
         if ("redeem".equalsIgnoreCase(source)) {
             changeType = "redeem";

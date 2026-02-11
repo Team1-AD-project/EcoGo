@@ -142,10 +142,19 @@ public class TripServiceImpl implements TripService {
         trip.setCarbonStatus("completed");
 
         // Update user's totalCarbon
+        // Update user's totalCarbon
         if (carbonSaved > 0) {
             // Refetch user to ensure we have the latest points updated by pointsService
+            // FORCE REFRESH: By using a new transaction or simply forcing a reload?
+            // Since we are in the same transaction, finding by ID should return the managed
+            // entity with latest changes IF PointsService saved it.
+            // If PointsService saved it, the entity manager caches the update.
             user = userRepository.findByUserid(userId)
                     .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+
+            // Log to debug if needed (removed for production)
+            // log.info("User points before carbon update: " + user.getCurrentPoints());
+
             double newTotal = user.getTotalCarbon() + carbonSaved;
             user.setTotalCarbon(Math.round(newTotal * 100.0) / 100.0);
             userRepository.save(user);
