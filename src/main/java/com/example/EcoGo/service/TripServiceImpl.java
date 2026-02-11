@@ -143,6 +143,9 @@ public class TripServiceImpl implements TripService {
 
         // Update user's totalCarbon
         if (carbonSaved > 0) {
+            // Refetch user to ensure we have the latest points updated by pointsService
+            user = userRepository.findByUserid(userId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
             double newTotal = user.getTotalCarbon() + carbonSaved;
             user.setTotalCarbon(Math.round(newTotal * 100.0) / 100.0);
             userRepository.save(user);
@@ -233,7 +236,8 @@ public class TripServiceImpl implements TripService {
             try {
                 result.add(convertToResponse(trip));
             } catch (Exception e) {
-                log.error("[getTripsByUser] Failed to convert trip id={} for userId={}: {}", trip.getId(), userId, e.getMessage(), e);
+                log.error("[getTripsByUser] Failed to convert trip id={} for userId={}: {}", trip.getId(), userId,
+                        e.getMessage(), e);
             }
         }
         return result;
@@ -250,8 +254,8 @@ public class TripServiceImpl implements TripService {
         resp.detectedMode = trip.getDetectedMode();
         resp.mlConfidence = trip.getMlConfidence();
         resp.isGreenTrip = trip.isGreenTrip();
-        resp.distance = trip.getDistance();                            // km
-        resp.carbonSaved = trip.getCarbonSaved();                      // already in kg
+        resp.distance = trip.getDistance(); // km
+        resp.carbonSaved = trip.getCarbonSaved(); // already in kg
         resp.pointsGained = trip.getPointsGained();
         resp.carbonStatus = trip.getCarbonStatus();
         resp.createdAt = trip.getCreatedAt();
@@ -308,8 +312,8 @@ public class TripServiceImpl implements TripService {
         resp.id = trip.getId();
         resp.userId = trip.getUserId();
         resp.detectedMode = trip.getDetectedMode();
-        resp.distance = trip.getDistance();                            // km
-        resp.carbonSaved = trip.getCarbonSaved();                      // already in kg
+        resp.distance = trip.getDistance(); // km
+        resp.carbonSaved = trip.getCarbonSaved(); // already in kg
         resp.pointsGained = trip.getPointsGained();
         resp.isGreenTrip = trip.isGreenTrip();
         resp.carbonStatus = trip.getCarbonStatus();
