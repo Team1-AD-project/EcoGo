@@ -142,36 +142,44 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    public Order updateOrder(String id, Order order) {
-        Optional<Order> existingOrder = orderRepository.findById(id);
-        if (existingOrder.isPresent()) {
-            Order updatedOrder = existingOrder.get();
+public Order updateOrder(String id, Order order) {
+    Order updatedOrder = orderRepository.findById(id)
+            .orElseThrow(() -> new RuntimeException("ORDER_NOT_FOUND"));
 
-            // 只更新允许更新的字段
-            if (order.getStatus() != null) updatedOrder.setStatus(order.getStatus());
-            if (order.getPaymentStatus() != null) updatedOrder.setPaymentStatus(order.getPaymentStatus());
-            if (order.getPaymentMethod() != null) updatedOrder.setPaymentMethod(order.getPaymentMethod());
-            if (order.getShippingAddress() != null) updatedOrder.setShippingAddress(order.getShippingAddress());
-            if (order.getRecipientName() != null) updatedOrder.setRecipientName(order.getRecipientName());
-            if (order.getRecipientPhone() != null) updatedOrder.setRecipientPhone(order.getRecipientPhone());
-            if (order.getRemark() != null) updatedOrder.setRemark(order.getRemark());
+    applyBasicUpdates(updatedOrder, order);
+    applyShippingUpdate(updatedOrder, order);
+    applyTrackingUpdate(updatedOrder, order);
 
-            if (order.getShippingFee() != null) {
-                updatedOrder.setShippingFee(order.getShippingFee());
-                if (updatedOrder.getTotalAmount() != null) {
-                    updatedOrder.setFinalAmount(updatedOrder.getTotalAmount() + updatedOrder.getShippingFee());
-                }
-            }
+    updatedOrder.setUpdatedAt(new Date());
+    return orderRepository.save(updatedOrder);
+}
 
-            if (order.getTrackingNumber() != null) {
-                updatedOrder.setTrackingNumber(order.getTrackingNumber());
-            }
 
-            updatedOrder.setUpdatedAt(new Date());
-            return orderRepository.save(updatedOrder);
-        }
-        throw new RuntimeException("ORDER_NOT_FOUND");
+private void applyBasicUpdates(Order target, Order source) {
+    if (source.getStatus() != null) target.setStatus(source.getStatus());
+    if (source.getPaymentStatus() != null) target.setPaymentStatus(source.getPaymentStatus());
+    if (source.getPaymentMethod() != null) target.setPaymentMethod(source.getPaymentMethod());
+    if (source.getShippingAddress() != null) target.setShippingAddress(source.getShippingAddress());
+    if (source.getRecipientName() != null) target.setRecipientName(source.getRecipientName());
+    if (source.getRecipientPhone() != null) target.setRecipientPhone(source.getRecipientPhone());
+    if (source.getRemark() != null) target.setRemark(source.getRemark());
+}
+
+private void applyShippingUpdate(Order target, Order source) {
+    if (source.getShippingFee() == null) return;
+
+    target.setShippingFee(source.getShippingFee());
+
+    if (target.getTotalAmount() != null) {
+        target.setFinalAmount(target.getTotalAmount() + target.getShippingFee());
     }
+}
+
+private void applyTrackingUpdate(Order target, Order source) {
+    if (source.getTrackingNumber() != null) {
+        target.setTrackingNumber(source.getTrackingNumber());
+    }
+}
 
     /**
      * 判断用户是否为有效 VIP：vip.is_active=true 且 expiryDate > now
