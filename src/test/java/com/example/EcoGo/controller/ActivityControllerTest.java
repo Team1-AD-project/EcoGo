@@ -1,5 +1,6 @@
 package com.example.EcoGo.controller;
 
+import com.example.EcoGo.dto.ActivityRequestDto;
 import com.example.EcoGo.dto.ResponseMessage;
 import com.example.EcoGo.exception.errorcode.ErrorCode;
 import com.example.EcoGo.interfacemethods.ActivityInterface;
@@ -90,26 +91,29 @@ class ActivityControllerTest {
     // ---------- createWebActivity ----------
     @Test
     void createWebActivity_success() {
-        Activity input = buildActivity(null, "New Activity", "ONLINE", null, 200, null);
+        ActivityRequestDto dto = new ActivityRequestDto();
+        dto.setTitle("New Activity");
+        dto.setType("ONLINE");
+        dto.setMaxParticipants(200);
         Activity created = buildActivity("a3", "New Activity", "ONLINE", "DRAFT", 200, 0);
         when(activityService.createActivity(any(Activity.class))).thenReturn(created);
 
-        ResponseMessage<Activity> resp = controller.createWebActivity(input);
+        ResponseMessage<Activity> resp = controller.createWebActivity(dto);
 
         assertEquals(ErrorCode.SUCCESS.getCode(), resp.getCode());
         assertEquals("a3", resp.getData().getId());
-        verify(activityService).createActivity(input);
+        verify(activityService).createActivity(any(Activity.class));
     }
 
     // ---------- updateWebActivity ----------
     @Test
     void updateWebActivity_success() {
-        Activity input = new Activity();
-        input.setTitle("Updated Title");
+        ActivityRequestDto dto = new ActivityRequestDto();
+        dto.setTitle("Updated Title");
         Activity updated = buildActivity("a1", "Updated Title", "OFFLINE", "PUBLISHED", 50, 10);
         when(activityService.updateActivity(eq("a1"), any(Activity.class))).thenReturn(updated);
 
-        ResponseMessage<Activity> resp = controller.updateWebActivity("a1", input);
+        ResponseMessage<Activity> resp = controller.updateWebActivity("a1", dto);
 
         assertEquals(ErrorCode.SUCCESS.getCode(), resp.getCode());
         assertEquals("Updated Title", resp.getData().getTitle());

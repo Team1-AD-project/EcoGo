@@ -1,5 +1,6 @@
 package com.example.EcoGo.controller;
 
+import com.example.EcoGo.dto.ChallengeRequestDto;
 import com.example.EcoGo.dto.ResponseMessage;
 import com.example.EcoGo.dto.UserChallengeProgressDTO;
 import com.example.EcoGo.exception.errorcode.ErrorCode;
@@ -109,26 +110,31 @@ class ChallengeControllerTest {
     // ---------- createWebChallenge ----------
     @Test
     void createWebChallenge_success() {
-        Challenge input = buildChallenge(null, "New Challenge", "CARBON_SAVED", 5000.0, 200, "ACTIVE");
+        ChallengeRequestDto dto = new ChallengeRequestDto();
+        dto.setTitle("New Challenge");
+        dto.setType("CARBON_SAVED");
+        dto.setTarget(5000.0);
+        dto.setReward(200);
+        dto.setStatus("ACTIVE");
         Challenge created = buildChallenge("c3", "New Challenge", "CARBON_SAVED", 5000.0, 200, "ACTIVE");
         when(challengeService.createChallenge(any(Challenge.class))).thenReturn(created);
 
-        ResponseMessage<Challenge> resp = controller.createWebChallenge(input);
+        ResponseMessage<Challenge> resp = controller.createWebChallenge(dto);
 
         assertEquals(ErrorCode.SUCCESS.getCode(), resp.getCode());
         assertEquals("c3", resp.getData().getId());
-        verify(challengeService).createChallenge(input);
+        verify(challengeService).createChallenge(any(Challenge.class));
     }
 
     // ---------- updateWebChallenge ----------
     @Test
     void updateWebChallenge_success() {
-        Challenge input = new Challenge();
-        input.setTitle("Updated Title");
+        ChallengeRequestDto dto = new ChallengeRequestDto();
+        dto.setTitle("Updated Title");
         Challenge updated = buildChallenge("c1", "Updated Title", "GREEN_TRIPS_DISTANCE", 10000.0, 100, "ACTIVE");
         when(challengeService.updateChallenge(eq("c1"), any(Challenge.class))).thenReturn(updated);
 
-        ResponseMessage<Challenge> resp = controller.updateWebChallenge("c1", input);
+        ResponseMessage<Challenge> resp = controller.updateWebChallenge("c1", dto);
 
         assertEquals(ErrorCode.SUCCESS.getCode(), resp.getCode());
         assertEquals("Updated Title", resp.getData().getTitle());

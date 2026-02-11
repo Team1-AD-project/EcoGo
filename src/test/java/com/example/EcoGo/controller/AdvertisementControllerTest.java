@@ -1,5 +1,6 @@
 package com.example.EcoGo.controller;
 
+import com.example.EcoGo.dto.AdvertisementRequestDto;
 import com.example.EcoGo.dto.ResponseMessage;
 import com.example.EcoGo.exception.errorcode.ErrorCode;
 import com.example.EcoGo.interfacemethods.AdvertisementInterface;
@@ -97,25 +98,35 @@ class AdvertisementControllerTest {
     // ---------- createWebAdvertisement ----------
     @Test
     void createWebAdvertisement_success() {
-        Advertisement input = buildAd(null, "New Ad", "Active");
+        AdvertisementRequestDto dto = new AdvertisementRequestDto();
+        dto.setName("New Ad");
+        dto.setDescription("Test description");
+        dto.setStatus("Active");
+        dto.setStartDate(LocalDate.of(2026, 1, 1));
+        dto.setEndDate(LocalDate.of(2026, 12, 31));
+        dto.setImageUrl("https://img.example.com/ad.png");
+        dto.setLinkUrl("https://example.com");
+        dto.setPosition("banner");
         Advertisement created = buildAd("ad3", "New Ad", "Active");
         when(advertisementService.createAdvertisement(any(Advertisement.class))).thenReturn(created);
 
-        ResponseMessage<Advertisement> resp = controller.createWebAdvertisement(input);
+        ResponseMessage<Advertisement> resp = controller.createWebAdvertisement(dto);
 
         assertEquals(ErrorCode.SUCCESS.getCode(), resp.getCode());
         assertEquals("ad3", resp.getData().getId());
-        verify(advertisementService).createAdvertisement(input);
+        verify(advertisementService).createAdvertisement(any(Advertisement.class));
     }
 
     // ---------- updateWebAdvertisement ----------
     @Test
     void updateWebAdvertisement_success() {
-        Advertisement input = buildAd(null, "Updated Ad", "Active");
+        AdvertisementRequestDto dto = new AdvertisementRequestDto();
+        dto.setName("Updated Ad");
+        dto.setStatus("Active");
         Advertisement updated = buildAd("ad1", "Updated Ad", "Active");
         when(advertisementService.updateAdvertisement(eq("ad1"), any(Advertisement.class))).thenReturn(updated);
 
-        ResponseMessage<Advertisement> resp = controller.updateWebAdvertisement("ad1", input);
+        ResponseMessage<Advertisement> resp = controller.updateWebAdvertisement("ad1", dto);
 
         assertEquals(ErrorCode.SUCCESS.getCode(), resp.getCode());
         assertEquals("Updated Ad", resp.getData().getName());
