@@ -351,7 +351,7 @@ jobs:
           cache: maven
 
       - name: Download JaCoCo Coverage Reports
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: coverage-reports
           path: target/site/jacoco
@@ -400,7 +400,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Download Build Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: build-artifacts
 
@@ -448,7 +448,7 @@ jobs:
         run: echo "Waiting for manual approval in GitHub Environments..."
 
       - name: Download Build Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: build-artifacts
 
@@ -560,7 +560,7 @@ jobs:
       
       - name: Download Build Artifacts (if no real deployment)
         if: steps.check_deployment.outputs.has_deployment != 'true'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: build-artifacts
       
@@ -688,7 +688,7 @@ jobs:
       - uses: actions/checkout@v4
       
       - name: Download Build Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: build-artifacts
       
@@ -790,7 +790,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Download Build Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: build-artifacts
 
