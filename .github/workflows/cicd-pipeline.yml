@@ -39,7 +39,7 @@ jobs:
 
       - name: Upload Lint Reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: lint-reports
           path: |
@@ -96,7 +96,7 @@ jobs:
 
       - name: Upload Unit Test Reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: unit-test-reports
           path: |
@@ -156,7 +156,7 @@ jobs:
 
       - name: Upload SAST Reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: sast-reports
           path: |
@@ -194,7 +194,7 @@ jobs:
           cp target/EcoGo-*.jar build-artifacts/
 
       - name: Upload Build Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: build-artifacts
           path: build-artifacts/
@@ -240,7 +240,7 @@ jobs:
 
       - name: Upload Trivy SARIF (Artifact)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: trivy-results
           path: |
@@ -257,7 +257,7 @@ jobs:
 
       - name: Upload Trivy Table Output (Artifact)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: trivy-results-table
           path: |
@@ -321,7 +321,7 @@ jobs:
           echo "==================================="
       
       - name: Upload Coverage Reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: always()
         with:
           name: coverage-reports
@@ -379,7 +379,7 @@ jobs:
 
       - name: Upload SonarQube Evidence (Artifact)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: sonarqube-evidence
           path: |
@@ -520,7 +520,7 @@ jobs:
 
       - name: Upload Test Reports (Artifact)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: test-reports
           path: |
@@ -618,7 +618,7 @@ jobs:
 
       - name: Upload Smoke Test Logs (Artifact)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: smoke-test-logs
           path: |
@@ -743,7 +743,7 @@ jobs:
         continue-on-error: true
       
       - name: Upload Performance Report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: always()
         with:
           name: jmeter-report
@@ -751,7 +751,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Upload Performance Raw Results (Artifact)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: always()
         with:
           name: jmeter-raw
@@ -919,7 +919,7 @@ jobs:
 
       - name: Upload DAST Report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: dast-report
           path: |
