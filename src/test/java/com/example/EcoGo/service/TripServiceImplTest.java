@@ -20,6 +20,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -113,6 +114,10 @@ class TripServiceImplTest {
         assertEquals(116.0, result.getStartPoint().getLng());
         assertEquals(39.0, result.getStartPoint().getLat());
         assertEquals("Address A", result.getStartLocation().getAddress());
+        assertEquals("Place A", result.getStartLocation().getPlaceName());
+        assertEquals("Zone A", result.getStartLocation().getCampusZone());
+        assertNotNull(result.getStartTime());
+        assertNotNull(result.getCreatedAt());
     }
 
     @Test
@@ -142,9 +147,7 @@ class TripServiceImplTest {
         assertEquals("completed", result.getCarbonStatus());
         assertNotNull(result.getEndPoint());
         assertNotNull(result.getEndLocation());
-        // carbonSaved = 0.2 * 2.5 = 0.5
         assertEquals(0.5, result.getCarbonSaved(), 0.01);
-        // basePoints = round(0.5) * 10 = 10, not VIP so no doubling
         assertEquals(10, result.getPointsGained());
         verify(pointsService).settle(eq("user1"), any(PointsDto.SettleResult.class));
         verify(userRepository).save(testUser);
@@ -167,7 +170,6 @@ class TripServiceImplTest {
 
         Trip result = tripService.completeTrip("user1", "trip1", buildCompleteRequest());
 
-        // basePoints = 10, VIP with double enabled = 20
         assertEquals(20, result.getPointsGained());
     }
 
@@ -218,6 +220,126 @@ class TripServiceImplTest {
     }
 
     @Test
+    void completeTrip_unknownTransportMode_skipsCarbon() {
+        TripDto.CompleteTripRequest req = buildCompleteRequest();
+        TripDto.TransportSegmentDto seg = new TripDto.TransportSegmentDto();
+        seg.mode = "unknown_mode";
+        seg.subDistance = 5.0;
+        seg.subDuration = 20;
+        req.transportModes = List.of(seg);
+
+        when(tripRepository.findById("trip1")).thenReturn(Optional.of(testTrip));
+        when(transportModeRepository.findByMode("unknown_mode")).thenReturn(Optional.empty());
+        when(userRepository.findByUserid("user1")).thenReturn(Optional.of(testUser));
+        when(vipSwitchService.isSwitchEnabled("Double_points")).thenReturn(false);
+        when(pointsService.formatTripDescription(any(), anyString(), anyDouble())).thenReturn("desc");
+        when(tripRepository.save(any(Trip.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Trip result = tripService.completeTrip("user1", "trip1", req);
+
+        // Unknown mode => carbonFactor not applied
+        assertEquals(0.0, result.getCarbonSaved());
+    }
+
+    @Test
+    void completeTrip_multipleTransportSegments() {
+        TripDto.CompleteTripRequest req = buildCompleteRequest();
+        TripDto.TransportSegmentDto seg1 = new TripDto.TransportSegmentDto();
+        seg1.mode = "walk";
+        seg1.subDistance = 1.0;
+        seg1.subDuration = 15;
+        TripDto.TransportSegmentDto seg2 = new TripDto.TransportSegmentDto();
+        seg2.mode = "bus";
+        seg2.subDistance = 3.0;
+        seg2.subDuration = 10;
+        req.transportModes = List.of(seg1, seg2);
+
+        TransportMode walkMode = new TransportMode("1", "walk", "Walking", 0.2, "icon", 1, true);
+        TransportMode busMode = new TransportMode("2", "bus", "Bus", 0.1, "icon", 2, true);
+
+        when(tripRepository.findById("trip1")).thenReturn(Optional.of(testTrip));
+        when(transportModeRepository.findByMode("walk")).thenReturn(Optional.of(walkMode));
+        when(transportModeRepository.findByMode("bus")).thenReturn(Optional.of(busMode));
+        when(userRepository.findByUserid("user1")).thenReturn(Optional.of(testUser));
+        when(vipSwitchService.isSwitchEnabled("Double_points")).thenReturn(false);
+        when(pointsService.formatTripDescription(any(), anyString(), anyDouble())).thenReturn("desc");
+        when(tripRepository.save(any(Trip.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Trip result = tripService.completeTrip("user1", "trip1", req);
+
+        // walk: 0.2 * 1.0 = 0.2, bus: 0.1 * 3.0 = 0.3, total = 0.5
+        assertEquals(0.5, result.getCarbonSaved(), 0.01);
+        assertEquals(2, result.getTransportModes().size());
+    }
+
+    @Test
+    void completeTrip_withPolylinePoints() {
+        TripDto.CompleteTripRequest req = buildCompleteRequest();
+        TripDto.GeoPointDto p1 = new TripDto.GeoPointDto();
+        p1.lng = 116.0;
+        p1.lat = 39.0;
+        TripDto.GeoPointDto p2 = new TripDto.GeoPointDto();
+        p2.lng = 116.05;
+        p2.lat = 39.05;
+        TripDto.GeoPointDto p3 = new TripDto.GeoPointDto();
+        p3.lng = 116.1;
+        p3.lat = 39.1;
+        req.polylinePoints = List.of(p1, p2, p3);
+
+        TransportMode walkMode = new TransportMode("1", "walk", "Walking", 0.2, "icon", 1, true);
+
+        when(tripRepository.findById("trip1")).thenReturn(Optional.of(testTrip));
+        when(transportModeRepository.findByMode("walk")).thenReturn(Optional.of(walkMode));
+        when(userRepository.findByUserid("user1")).thenReturn(Optional.of(testUser));
+        when(vipSwitchService.isSwitchEnabled("Double_points")).thenReturn(false);
+        when(pointsService.formatTripDescription(any(), anyString(), anyDouble())).thenReturn("desc");
+        when(tripRepository.save(any(Trip.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Trip result = tripService.completeTrip("user1", "trip1", req);
+
+        assertNotNull(result.getPolylinePoints());
+        assertEquals(3, result.getPolylinePoints().size());
+        assertEquals(116.05, result.getPolylinePoints().get(1).getLng(), 0.01);
+    }
+
+    @Test
+    void completeTrip_nullPolylinePoints() {
+        TripDto.CompleteTripRequest req = buildCompleteRequest();
+        req.polylinePoints = null;
+
+        TransportMode walkMode = new TransportMode("1", "walk", "Walking", 0.2, "icon", 1, true);
+
+        when(tripRepository.findById("trip1")).thenReturn(Optional.of(testTrip));
+        when(transportModeRepository.findByMode("walk")).thenReturn(Optional.of(walkMode));
+        when(userRepository.findByUserid("user1")).thenReturn(Optional.of(testUser));
+        when(vipSwitchService.isSwitchEnabled("Double_points")).thenReturn(false);
+        when(pointsService.formatTripDescription(any(), anyString(), anyDouble())).thenReturn("desc");
+        when(tripRepository.save(any(Trip.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Trip result = tripService.completeTrip("user1", "trip1", req);
+
+        assertNull(result.getPolylinePoints());
+    }
+
+    @Test
+    void completeTrip_zeroCarbonSaved_doesNotUpdateTotalCarbon() {
+        TripDto.CompleteTripRequest req = buildCompleteRequest();
+        req.transportModes = null; // no transport => carbonSaved = 0
+
+        when(tripRepository.findById("trip1")).thenReturn(Optional.of(testTrip));
+        when(userRepository.findByUserid("user1")).thenReturn(Optional.of(testUser));
+        when(vipSwitchService.isSwitchEnabled("Double_points")).thenReturn(false);
+        when(pointsService.formatTripDescription(any(), anyString(), anyDouble())).thenReturn("desc");
+        when(tripRepository.save(any(Trip.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        tripService.completeTrip("user1", "trip1", req);
+
+        // userRepository.save should only be called once (for saving the trip)
+        // but not for updating totalCarbon since carbonSaved is 0
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
     void completeTrip_updatesTotalCarbon() {
         TransportMode walkMode = new TransportMode("1", "walk", "Walking", 0.2, "icon", 1, true);
 
@@ -230,9 +352,66 @@ class TripServiceImplTest {
 
         tripService.completeTrip("user1", "trip1", buildCompleteRequest());
 
-        // totalCarbon was 50.0, now should be 50.0 + 0.5 = 50.5
         assertEquals(50.5, testUser.getTotalCarbon(), 0.01);
         verify(userRepository).save(testUser);
+    }
+
+    @Test
+    void completeTrip_nullStartLocation_handledInDescription() {
+        testTrip.setStartLocation(null);
+        TransportMode walkMode = new TransportMode("1", "walk", "Walking", 0.2, "icon", 1, true);
+
+        when(tripRepository.findById("trip1")).thenReturn(Optional.of(testTrip));
+        when(transportModeRepository.findByMode("walk")).thenReturn(Optional.of(walkMode));
+        when(userRepository.findByUserid("user1")).thenReturn(Optional.of(testUser));
+        when(vipSwitchService.isSwitchEnabled("Double_points")).thenReturn(false);
+        when(pointsService.formatTripDescription(isNull(), anyString(), anyDouble())).thenReturn("desc");
+        when(tripRepository.save(any(Trip.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Trip result = tripService.completeTrip("user1", "trip1", buildCompleteRequest());
+
+        assertNotNull(result);
+        verify(pointsService).formatTripDescription(isNull(), eq("Place B"), eq(2.5));
+    }
+
+    @Test
+    void completeTrip_vipActiveButSwitchDisabled_noDoublePoints() {
+        User.Vip vip = new User.Vip();
+        vip.setActive(true);
+        testUser.setVip(vip);
+
+        TransportMode walkMode = new TransportMode("1", "walk", "Walking", 0.2, "icon", 1, true);
+
+        when(tripRepository.findById("trip1")).thenReturn(Optional.of(testTrip));
+        when(transportModeRepository.findByMode("walk")).thenReturn(Optional.of(walkMode));
+        when(userRepository.findByUserid("user1")).thenReturn(Optional.of(testUser));
+        when(vipSwitchService.isSwitchEnabled("Double_points")).thenReturn(false); // switch off
+        when(pointsService.formatTripDescription(any(), anyString(), anyDouble())).thenReturn("desc");
+        when(tripRepository.save(any(Trip.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Trip result = tripService.completeTrip("user1", "trip1", buildCompleteRequest());
+
+        // VIP active but switch disabled => no doubling
+        assertEquals(10, result.getPointsGained());
+    }
+
+    @Test
+    void completeTrip_vipNullButSwitchEnabled_noDoublePoints() {
+        testUser.setVip(null);
+
+        TransportMode walkMode = new TransportMode("1", "walk", "Walking", 0.2, "icon", 1, true);
+
+        when(tripRepository.findById("trip1")).thenReturn(Optional.of(testTrip));
+        when(transportModeRepository.findByMode("walk")).thenReturn(Optional.of(walkMode));
+        when(userRepository.findByUserid("user1")).thenReturn(Optional.of(testUser));
+        when(vipSwitchService.isSwitchEnabled("Double_points")).thenReturn(true); // switch on
+        when(pointsService.formatTripDescription(any(), anyString(), anyDouble())).thenReturn("desc");
+        when(tripRepository.save(any(Trip.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Trip result = tripService.completeTrip("user1", "trip1", buildCompleteRequest());
+
+        // No VIP => no doubling
+        assertEquals(10, result.getPointsGained());
     }
 
     // ========== cancelTrip ==========
@@ -361,7 +540,7 @@ class TripServiceImplTest {
         assertNull(result);
     }
 
-    // ========== getAllTrips (admin) ==========
+    // ========== getAllTrips ==========
 
     @Test
     void getAllTrips_success() {
@@ -395,7 +574,26 @@ class TripServiceImplTest {
         assertTrue(result.isEmpty());
     }
 
-    // ========== getTripsByUser (admin) ==========
+    @Test
+    void getAllTrips_conversionException_skipsFailedTrip() {
+        Trip badTrip = mock(Trip.class);
+        when(badTrip.getId()).thenReturn("bad");
+        // Make getStartPoint throw to simulate conversion failure
+        when(badTrip.getUserId()).thenReturn("u1");
+        when(badTrip.getDetectedMode()).thenReturn("walk");
+        when(badTrip.getCarbonStatus()).thenReturn("completed");
+        when(badTrip.getStartTime()).thenReturn(LocalDateTime.now());
+        when(badTrip.getStartPoint()).thenThrow(new RuntimeException("conversion error"));
+
+        when(tripRepository.findAll()).thenReturn(List.of(testTrip, badTrip));
+
+        List<TripDto.TripSummaryResponse> result = tripService.getAllTrips();
+
+        // Good trip succeeds, bad trip is skipped
+        assertEquals(1, result.size());
+    }
+
+    // ========== getTripsByUser ==========
 
     @Test
     void getTripsByUser_success() {
@@ -428,7 +626,22 @@ class TripServiceImplTest {
         assertTrue(result.isEmpty());
     }
 
-    // ========== convertToResponse (tested through getTripById) ==========
+    @Test
+    void getTripsByUser_conversionException_skipsFailedTrip() {
+        Trip badTrip = mock(Trip.class);
+        when(badTrip.getId()).thenReturn("bad");
+        when(badTrip.getUserId()).thenReturn("user1");
+        when(badTrip.getStartTime()).thenReturn(LocalDateTime.now());
+        when(badTrip.getStartPoint()).thenThrow(new RuntimeException("conversion error"));
+
+        when(tripRepository.findByUserIdOrderByCreatedAtDesc("user1")).thenReturn(List.of(testTrip, badTrip));
+
+        List<TripDto.TripResponse> result = tripService.getTripsByUser("user1");
+
+        assertEquals(1, result.size());
+    }
+
+    // ========== convertToResponse (full coverage via getTripById) ==========
 
     @Test
     void getTripById_fullConversion() {
@@ -463,11 +676,86 @@ class TripServiceImplTest {
         assertTrue(result.isGreenTrip);
         assertNotNull(result.startPoint);
         assertNotNull(result.endPoint);
+        assertEquals(116.1, result.endPoint.lng, 0.01);
+        assertEquals(39.1, result.endPoint.lat, 0.01);
         assertNotNull(result.startLocation);
         assertNotNull(result.endLocation);
         assertEquals("Address B", result.endLocation.address);
+        assertEquals("Place B", result.endLocation.placeName);
+        assertEquals("Zone B", result.endLocation.campusZone);
         assertEquals(1, result.transportModes.size());
         assertEquals("bike", result.transportModes.get(0).mode);
+        assertEquals(3.0, result.transportModes.get(0).subDistance, 0.01);
+        assertEquals(15, result.transportModes.get(0).subDuration);
         assertEquals(2, result.polylinePoints.size());
+    }
+
+    @Test
+    void getTripById_nullEndPointAndEndLocation() {
+        testTrip.setEndPoint(null);
+        testTrip.setEndLocation(null);
+        testTrip.setTransportModes(null);
+        testTrip.setPolylinePoints(null);
+
+        when(tripRepository.findById("trip1")).thenReturn(Optional.of(testTrip));
+
+        TripDto.TripResponse result = tripService.getTripById("user1", "trip1");
+
+        assertNull(result.endPoint);
+        assertNull(result.endLocation);
+        assertNull(result.transportModes);
+        assertNull(result.polylinePoints);
+    }
+
+    // ========== convertToSummary (full coverage via getUserTrips) ==========
+
+    @Test
+    void getUserTrips_fullSummaryConversion() {
+        testTrip.setDistance(3.0);
+        testTrip.setCarbonSaved(0.6);
+        testTrip.setPointsGained(60);
+        testTrip.setDetectedMode("bike");
+        testTrip.setGreenTrip(true);
+        testTrip.setEndPoint(new Trip.GeoPoint(116.1, 39.1));
+        testTrip.setEndLocation(new Trip.LocationDetail("Address B", "Place B", "Zone B"));
+        testTrip.setEndTime(LocalDateTime.now());
+
+        when(tripRepository.findByUserIdOrderByCreatedAtDesc("user1")).thenReturn(List.of(testTrip));
+
+        List<TripDto.TripSummaryResponse> result = tripService.getUserTrips("user1");
+
+        assertEquals(1, result.size());
+        TripDto.TripSummaryResponse summary = result.get(0);
+        assertEquals("trip1", summary.id);
+        assertEquals("user1", summary.userId);
+        assertEquals("bike", summary.detectedMode);
+        assertEquals(3.0, summary.distance, 0.01);
+        assertEquals(0.6, summary.carbonSaved, 0.01);
+        assertEquals(60, summary.pointsGained);
+        assertTrue(summary.isGreenTrip);
+        assertNotNull(summary.startPoint);
+        assertNotNull(summary.endPoint);
+        assertEquals(116.1, summary.endPoint.lng, 0.01);
+        assertEquals("Place A", summary.startPlaceName);
+        assertEquals("Place B", summary.endPlaceName);
+    }
+
+    @Test
+    void getUserTrips_nullStartAndEndLocations_inSummary() {
+        testTrip.setStartLocation(null);
+        testTrip.setEndLocation(null);
+        testTrip.setStartPoint(null);
+        testTrip.setEndPoint(null);
+
+        when(tripRepository.findByUserIdOrderByCreatedAtDesc("user1")).thenReturn(List.of(testTrip));
+
+        List<TripDto.TripSummaryResponse> result = tripService.getUserTrips("user1");
+
+        assertEquals(1, result.size());
+        TripDto.TripSummaryResponse summary = result.get(0);
+        assertNull(summary.startPoint);
+        assertNull(summary.endPoint);
+        assertNull(summary.startPlaceName);
+        assertNull(summary.endPlaceName);
     }
 }

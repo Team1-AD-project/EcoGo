@@ -12,6 +12,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
+import java.lang.reflect.Field;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -57,6 +58,16 @@ class StatisticsImplementationTest {
         return t;
     }
 
+    private static void setField(Object target, String fieldName, Object value) {
+        try {
+            Field f = target.getClass().getSuperclass().getDeclaredField(fieldName);
+            f.setAccessible(true);
+            f.set(target, value);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     // ---------- getManagementAnalytics - monthly ----------
     @Test
     void getManagementAnalytics_monthly_success() {
@@ -82,6 +93,36 @@ class StatisticsImplementationTest {
         // Should have 6 data points for monthly
         assertEquals(6, result.getUserGrowthTrend().size());
         assertEquals(6, result.getCarbonGrowthTrend().size());
+    }
+
+    @Test
+    void getManagementAnalytics_monthly_onePeriod_triggersMetricFallbackBranch() {
+        // Create a custom service that only generates 1 data point so the
+        // "trend size < 2" metric fallback branch is executed.
+        StatisticsImplementation svc = new StatisticsImplementation() {
+            @Override
+            int monthlyPeriods() {
+                return 1;
+            }
+        };
+        setField(svc, "userRepository", userRepository);
+        setField(svc, "tripRepository", tripRepository);
+
+        when(userRepository.findAll()).thenReturn(List.of());
+        when(tripRepository.findByStartTimeBetweenAndCarbonStatus(any(), any(), eq("completed")))
+                .thenReturn(List.of());
+
+        AnalyticsSummaryDto result = svc.getManagementAnalytics("monthly");
+
+        assertNotNull(result);
+        assertNotNull(result.getUserGrowthTrend());
+        assertEquals(1, result.getUserGrowthTrend().size());
+        // Metric cards should use fallback zeros when < 2 points.
+        assertEquals(0, result.getTotalUsers().getCurrentValue());
+        assertEquals(0, result.getNewUsers().getCurrentValue());
+        assertEquals(0, result.getActiveUsers().getCurrentValue());
+        assertEquals(0, result.getTotalCarbonSaved().getCurrentValue());
+        assertEquals(0.0, result.getAverageCarbonPerUser().getCurrentValue());
     }
 
     // ---------- getManagementAnalytics - weekly ----------

@@ -462,23 +462,29 @@ class ChatOrchestratorServiceTest {
     }
 
     @Test void userUpdate_adminModifyOther_needsConfirm() {
-        // findByUserid is only called during executeUserUpdate (confirmation step), not here
+        // Current implementation validates the caller user exists before prompting.
+        lenient().when(userRepository.findByUserid("admin_001"))
+                .thenReturn(Optional.of(buildUser("admin_001", "Admin", null, null, null)));
         ChatResponseDto r = svc.handleChat("admin_001", true, "c1", "修改用户u_002资料 nickname=Admin");
         assertContains(r, "confirm");
     }
 
     @Test void userUpdate_adminModifyOther_confirm() {
+        lenient().when(userRepository.findByUserid("admin_001"))
+                .thenReturn(Optional.of(buildUser("admin_001", "Admin", null, null, null)));
         User target = buildUser("u_002", "Target", null, null, null);
-        when(userRepository.findByUserid("u_002")).thenReturn(Optional.of(target));
-        when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
-        when(auditLogService.createAuditLog(anyString(), anyString(), anyString(), anyMap())).thenReturn("au_1");
-        when(notificationService.createNotification(anyString(), anyString(), anyString(), anyString())).thenReturn("nt_1");
+        lenient().when(userRepository.findByUserid("u_002")).thenReturn(Optional.of(target));
+        lenient().when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
+        lenient().when(auditLogService.createAuditLog(anyString(), anyString(), anyString(), anyMap())).thenReturn("au_1");
+        lenient().when(notificationService.createNotification(anyString(), anyString(), anyString(), anyString())).thenReturn("nt_1");
         svc.handleChat("admin_001", true, "c1", "修改用户u_002资料 nickname=Admin");
         ChatResponseDto r = svc.handleChat("admin_001", true, "c1", "confirm");
         assertContains(r, "updated");
     }
 
     @Test void userUpdate_regularUserModifyOther_denied() {
+        lenient().when(userRepository.findByUserid("u_001"))
+                .thenReturn(Optional.of(buildUser("u_001", "User", null, null, null)));
         ChatResponseDto r = svc.handleChat("u_001", false, "c1", "修改用户u_002资料 nickname=Hack");
         assertContains(r, "permission");
     }
@@ -833,11 +839,13 @@ class ChatOrchestratorServiceTest {
 
     // ===== Admin confirm user update =====
     @Test void userUpdate_adminModifyOther_confirmFlow_thenExec() {
+        lenient().when(userRepository.findByUserid("admin_001"))
+                .thenReturn(Optional.of(buildUser("admin_001", "Admin", null, null, null)));
         User target = buildUser("u_002", "Target", null, null, null);
-        when(userRepository.findByUserid("u_002")).thenReturn(Optional.of(target));
-        when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
-        when(auditLogService.createAuditLog(anyString(), anyString(), anyString(), anyMap())).thenReturn("au_1");
-        when(notificationService.createNotification(anyString(), anyString(), anyString(), anyString())).thenReturn("nt_1");
+        lenient().when(userRepository.findByUserid("u_002")).thenReturn(Optional.of(target));
+        lenient().when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
+        lenient().when(auditLogService.createAuditLog(anyString(), anyString(), anyString(), anyMap())).thenReturn("au_1");
+        lenient().when(notificationService.createNotification(anyString(), anyString(), anyString(), anyString())).thenReturn("nt_1");
         // Step 1: request modification
         svc.handleChat("admin_001", true, "c1", "修改用户u_002资料 nickname=NewAdmin");
         // Step 2: confirm
@@ -847,22 +855,26 @@ class ChatOrchestratorServiceTest {
 
     // ===== Confirm commands =====
     @Test void confirmCommand_yes() {
+        lenient().when(userRepository.findByUserid("admin_001"))
+                .thenReturn(Optional.of(buildUser("admin_001", "Admin", null, null, null)));
         User target = buildUser("u_002", "T", null, null, null);
-        when(userRepository.findByUserid("u_002")).thenReturn(Optional.of(target));
-        when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
-        when(auditLogService.createAuditLog(anyString(), anyString(), anyString(), anyMap())).thenReturn("au_1");
-        when(notificationService.createNotification(anyString(), anyString(), anyString(), anyString())).thenReturn("nt_1");
+        lenient().when(userRepository.findByUserid("u_002")).thenReturn(Optional.of(target));
+        lenient().when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
+        lenient().when(auditLogService.createAuditLog(anyString(), anyString(), anyString(), anyMap())).thenReturn("au_1");
+        lenient().when(notificationService.createNotification(anyString(), anyString(), anyString(), anyString())).thenReturn("nt_1");
         svc.handleChat("admin_001", true, "c1", "修改用户u_002资料 nickname=X");
         ChatResponseDto r = svc.handleChat("admin_001", true, "c1", "yes");
         assertContains(r, "updated");
     }
 
     @Test void confirmCommand_ok() {
+        lenient().when(userRepository.findByUserid("admin_001"))
+                .thenReturn(Optional.of(buildUser("admin_001", "Admin", null, null, null)));
         User target = buildUser("u_002", "T", null, null, null);
-        when(userRepository.findByUserid("u_002")).thenReturn(Optional.of(target));
-        when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
-        when(auditLogService.createAuditLog(anyString(), anyString(), anyString(), anyMap())).thenReturn("au_1");
-        when(notificationService.createNotification(anyString(), anyString(), anyString(), anyString())).thenReturn("nt_1");
+        lenient().when(userRepository.findByUserid("u_002")).thenReturn(Optional.of(target));
+        lenient().when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
+        lenient().when(auditLogService.createAuditLog(anyString(), anyString(), anyString(), anyMap())).thenReturn("au_1");
+        lenient().when(notificationService.createNotification(anyString(), anyString(), anyString(), anyString())).thenReturn("nt_1");
         svc.handleChat("admin_001", true, "c1", "修改用户u_002资料 email=new@nus.edu");
         ChatResponseDto r = svc.handleChat("admin_001", true, "c1", "ok");
         assertContains(r, "updated");

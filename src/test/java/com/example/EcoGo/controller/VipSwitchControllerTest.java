@@ -91,4 +91,34 @@ class VipSwitchControllerTest {
 
         assertThrows(IllegalArgumentException.class, () -> vipSwitchController.setSwitch(payload));
     }
+
+    @Test
+    void setSwitch_missingIsEnabled_throws() {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("switchKey", "Double_points");
+        // missing isEnabled
+        payload.put("updatedBy", "admin");
+
+        assertThrows(IllegalArgumentException.class, () -> vipSwitchController.setSwitch(payload));
+    }
+
+    @Test
+    void setSwitch_missingUpdatedBy_throws() {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("switchKey", "Double_points");
+        payload.put("isEnabled", true);
+        // missing updatedBy
+
+        assertThrows(IllegalArgumentException.class, () -> vipSwitchController.setSwitch(payload));
+    }
+
+    @Test
+    void setSwitch_blankUpdatedBy_throws() {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("switchKey", "Double_points");
+        payload.put("isEnabled", true);
+        payload.put("updatedBy", "   ");
+
+        assertThrows(IllegalArgumentException.class, () -> vipSwitchController.setSwitch(payload));
+    }
 }

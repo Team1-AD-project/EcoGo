@@ -1253,7 +1253,9 @@ public class ChatOrchestratorService {
     }
 
     private String extractUserId(String text) {
-        Pattern p = Pattern.compile("\\b(u_\\d{3,})\\b");
+        // Do NOT use word boundaries here.
+        // In mixed Chinese/English text like "修改用户u_002资料", \\b won't match around u_002.
+        Pattern p = Pattern.compile("(u_\\d{3,})");
         Matcher m = p.matcher(text);
         return m.find() ? m.group(1) : null;
     }

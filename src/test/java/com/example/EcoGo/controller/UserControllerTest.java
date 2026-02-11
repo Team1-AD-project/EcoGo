@@ -3,6 +3,7 @@ package com.example.EcoGo.controller;
 import com.example.EcoGo.dto.AuthDto;
 import com.example.EcoGo.dto.ResponseMessage;
 import com.example.EcoGo.dto.UserProfileDto;
+import com.example.EcoGo.exception.BusinessException;
 import com.example.EcoGo.exception.errorcode.ErrorCode;
 import com.example.EcoGo.interfacemethods.UserInterface;
 import com.example.EcoGo.model.User;
@@ -17,6 +18,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -250,6 +252,18 @@ class UserControllerTest {
 
         assertEquals(ErrorCode.SUCCESS.getCode(), result.getCode());
         verify(userService).getUserByUserid("testUser");
+    }
+
+    @Test
+    void getUserByUserid_blank_shouldThrowBusinessException() {
+        BusinessException ex = assertThrows(BusinessException.class, () -> userController.getUserByUserid("   "));
+        assertEquals(ErrorCode.PARAM_ERROR.getCode(), ex.getCode());
+    }
+
+    @Test
+    void getUserByUserid_null_shouldThrowBusinessException() {
+        BusinessException ex = assertThrows(BusinessException.class, () -> userController.getUserByUserid(null));
+        assertEquals(ErrorCode.PARAM_ERROR.getCode(), ex.getCode());
     }
 
     @Test

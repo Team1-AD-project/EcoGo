@@ -40,6 +40,14 @@ class SupportChurnControllerTest {
     }
 
     @Test
+    void churn_userIdNull_shouldReturnParamError() {
+        ResponseMessage<ChurnRiskDTO> resp = controller.churn(null);
+
+        assertEquals(ErrorCode.PARAM_ERROR.getCode(), resp.getCode());
+        assertNull(resp.getData());
+    }
+
+    @Test
     void churn_validUserId_shouldReturnSuccessAndCallService() {
         when(supportService.getChurnRiskLevel("u1")).thenReturn(ChurnRiskLevel.HIGH);
 

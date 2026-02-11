@@ -88,6 +88,42 @@ class ChatbotControllerTest {
     }
 
     @Test
+    void chat_withValidToken_nonAdminClaim_shouldUseNotAdmin() {
+        ChatRequestDto request = new ChatRequestDto();
+        request.setConversationId("c2b");
+        request.setMessage("hello");
+
+        Claims claims = mock(Claims.class);
+        when(claims.getSubject()).thenReturn("u_002");
+        when(claims.get("isAdmin", Boolean.class)).thenReturn(false);
+        when(jwtUtils.validateToken("tok")).thenReturn(claims);
+
+        ChatResponseDto mockResp = new ChatResponseDto("c2b", "ok");
+        when(orchestratorService.handleChat("u_002", false, "c2b", "hello")).thenReturn(mockResp);
+
+        ResponseMessage<ChatResponseDto> resp = controller.chat("Bearer tok", request);
+
+        assertEquals(HttpStatus.OK.value(), resp.getCode());
+        verify(orchestratorService).handleChat("u_002", false, "c2b", "hello");
+    }
+
+    @Test
+    void chat_withBlankAuthHeader_shouldTreatAsGuest() {
+        ChatRequestDto request = new ChatRequestDto();
+        request.setConversationId("c1b");
+        request.setMessage("hello");
+
+        ChatResponseDto mockResp = new ChatResponseDto("c1b", "Hi!");
+        when(orchestratorService.handleChat("guest", false, "c1b", "hello")).thenReturn(mockResp);
+
+        ResponseMessage<ChatResponseDto> resp = controller.chat("   ", request);
+
+        assertEquals(HttpStatus.OK.value(), resp.getCode());
+        verify(orchestratorService).handleChat("guest", false, "c1b", "hello");
+        verifyNoInteractions(jwtUtils);
+    }
+
+    @Test
     void chat_withInvalidToken_shouldFallbackToGuest() {
         ChatRequestDto request = new ChatRequestDto();
         request.setConversationId("c3");

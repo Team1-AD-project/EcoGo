@@ -527,4 +527,258 @@ class GoodsControllerTest {
 
         assertEquals(ErrorCode.DB_ERROR.getCode(), ex.getCode());
     }
+
+    // ---------- Additional coverage tests ----------
+
+    @Test
+    void getAllGoods_categoryAll_alsoShouldNotFilter() {
+        Goods a = goods("g1", "A", null, "food", "normal", 0, true, 1, true);
+        Goods b = goods("g2", "B", null, "service", "normal", 0, true, 1, true);
+        when(goodsService.getAllGoods()).thenReturn(List.of(a, b));
+
+        ResponseMessage<Map<String, Object>> resp = controller.getAllGoods(1, 20, "all", null, null, true);
+        List<?> items = (List<?>) resp.getData().get("items");
+        assertEquals(2, items.size());
+    }
+
+    @Test
+    void getAllGoods_keywordMatchOnDescription() {
+        Goods a = goods("g1", "Coffee", "Starbucks blend", "beverage", "normal", 0, true, 1, true);
+        Goods b = goods("g2", "Tea", "Green tea", "beverage", "normal", 0, true, 1, true);
+        when(goodsService.getAllGoods()).thenReturn(List.of(a, b));
+
+        // keyword "starbucks" should match description of g1
+        ResponseMessage<Map<String, Object>> resp = controller.getAllGoods(1, 20, null, "starbucks", null, true);
+        List<?> items = (List<?>) resp.getData().get("items");
+        assertEquals(1, items.size());
+    }
+
+    @Test
+    void getAllGoods_isVipActiveTrue_noVipFiltering() {
+        Goods vipOnly = goods("g1", "VIP Item", null, "food", "normal", 1, true, 1, true);
+        Goods normal = goods("g2", "Normal Item", null, "food", "normal", 0, true, 1, true);
+        when(goodsService.getAllGoods()).thenReturn(List.of(vipOnly, normal));
+
+        // isVipActive=true => no filtering by vipLevelRequired
+        ResponseMessage<Map<String, Object>> resp = controller.getAllGoods(1, 20, null, null, null, true);
+        List<?> items = (List<?>) resp.getData().get("items");
+        assertEquals(2, items.size());
+    }
+
+    @Test
+    void getAllGoods_paginationBeyondRange() {
+        Goods a = goods("g1", "A", null, "food", "normal", 0, true, 1, true);
+        when(goodsService.getAllGoods()).thenReturn(List.of(a));
+
+        // page=5, size=20 => fromIndex=80 > total=1
+        ResponseMessage<Map<String, Object>> resp = controller.getAllGoods(5, 20, null, null, null, true);
+        List<?> items = (List<?>) resp.getData().get("items");
+        assertEquals(0, items.size());
+    }
+
+    @Test
+    void getAllGoods_nullTypeGoods_notFilteredAsVoucher() {
+        Goods nullType = goods("g1", "Item", null, "food", null, 0, true, 1, true);
+        when(goodsService.getAllGoods()).thenReturn(List.of(nullType));
+
+        ResponseMessage<Map<String, Object>> resp = controller.getAllGoods(1, 20, null, null, null, true);
+        List<?> items = (List<?>) resp.getData().get("items");
+        assertEquals(1, items.size());
+    }
+
+    @Test
+    void createGoods_emptyCategoryBlank_throwParamError() {
+        GoodsRequestDto dto = new GoodsRequestDto();
+        dto.setCategory("   ");
+        dto.setStock(1);
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> controller.createGoods(dto));
+        assertEquals(ErrorCode.PARAM_ERROR.getCode(), ex.getCode());
+    }
+
+    @Test
+    void createGoods_nullCategory_throwParamError() {
+        GoodsRequestDto dto = new GoodsRequestDto();
+        dto.setCategory(null);
+        dto.setStock(1);
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> controller.createGoods(dto));
+        assertEquals(ErrorCode.PARAM_ERROR.getCode(), ex.getCode());
+    }
+
+    @Test
+    void createGoods_serviceThrowsBusinessException_rethrows() {
+        GoodsRequestDto dto = new GoodsRequestDto();
+        dto.setCategory("food");
+        dto.setStock(1);
+
+        when(goodsService.createGoods(any(Goods.class)))
+                .thenThrow(new BusinessException(ErrorCode.PARAM_ERROR, "duplicate"));
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> controller.createGoods(dto));
+        assertEquals(ErrorCode.PARAM_ERROR.getCode(), ex.getCode());
+    }
+
+    @Test
+    void updateGoods_nullCategory_skipsValidation() {
+        GoodsRequestDto dto = new GoodsRequestDto();
+        dto.setStock(1);
+        // category is null => skip validation
+
+        Goods updated = goods("g1", "Coffee", null, null, "normal", 0, true, 1, true);
+        when(goodsService.updateGoods(eq("g1"), any(Goods.class))).thenReturn(updated);
+
+        ResponseMessage<Goods> resp = controller.updateGoods("g1", dto);
+        assertEquals(ErrorCode.SUCCESS.getCode(), resp.getCode());
+    }
+
+    @Test
+    void updateGoods_blankCategory_skipsValidation() {
+        GoodsRequestDto dto = new GoodsRequestDto();
+        dto.setCategory("   ");
+        dto.setStock(1);
+
+        Goods updated = goods("g1", "Coffee", null, null, "normal", 0, true, 1, true);
+        when(goodsService.updateGoods(eq("g1"), any(Goods.class))).thenReturn(updated);
+
+        ResponseMessage<Goods> resp = controller.updateGoods("g1", dto);
+        assertEquals(ErrorCode.SUCCESS.getCode(), resp.getCode());
+    }
+
+    @Test
+    void updateGoods_serviceThrowsBusinessException_rethrows() {
+        GoodsRequestDto dto = new GoodsRequestDto();
+        dto.setStock(1);
+
+        when(goodsService.updateGoods(eq("g1"), any(Goods.class)))
+                .thenThrow(new BusinessException(ErrorCode.PARAM_ERROR, "bad"));
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> controller.updateGoods("g1", dto));
+        assertEquals(ErrorCode.PARAM_ERROR.getCode(), ex.getCode());
+    }
+
+    @Test
+    void deleteGoods_runtimeException_throwsProductNotExist() {
+        doThrow(new RuntimeException("not found")).when(goodsService).deleteGoods("x");
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> controller.deleteGoods("x"));
+        assertEquals(ErrorCode.PRODUCT_NOT_EXIST.getCode(), ex.getCode());
+    }
+
+    @Test
+    void deleteGoods_businessException_rethrows() {
+        doThrow(new BusinessException(ErrorCode.PARAM_ERROR, "bad")).when(goodsService).deleteGoods("x");
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> controller.deleteGoods("x"));
+        assertEquals(ErrorCode.PARAM_ERROR.getCode(), ex.getCode());
+    }
+
+    @Test
+    void deleteAllGoods_businessException_rethrows() {
+        doThrow(new BusinessException(ErrorCode.PARAM_ERROR, "bad")).when(goodsService).deleteAllGoods();
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> controller.deleteAllGoods());
+        assertEquals(ErrorCode.PARAM_ERROR.getCode(), ex.getCode());
+    }
+
+    @Test
+    void getVoucherMarketplace_isVipActiveTrue_noVipFiltering() {
+        Goods voucherVip = goods("v1", "V1", null, "service", "voucher", 2, true, 5, true);
+        Goods voucherOk = goods("v2", "V2", null, "service", "voucher", 0, true, 5, true);
+        when(goodsService.getAllGoods()).thenReturn(List.of(voucherVip, voucherOk));
+
+        ResponseMessage<List<Goods>> resp = controller.getVoucherMarketplace(true);
+        assertEquals(2, resp.getData().size());
+    }
+
+    @Test
+    void getVoucherMarketplace_isVipActiveNull_noVipFiltering() {
+        Goods voucherVip = goods("v1", "V1", null, "service", "voucher", 2, true, 5, true);
+        when(goodsService.getAllGoods()).thenReturn(List.of(voucherVip));
+
+        ResponseMessage<List<Goods>> resp = controller.getVoucherMarketplace(null);
+        assertEquals(1, resp.getData().size());
+    }
+
+    @Test
+    void updateVoucher_existingTypeNull_throwParamError() {
+        Goods existing = goods("g1", "G", null, "food", null, 0, true, 1, true);
+        when(goodsService.getGoodsById("g1")).thenReturn(existing);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> controller.updateVoucher("g1", new GoodsRequestDto()));
+        assertEquals(ErrorCode.PARAM_ERROR.getCode(), ex.getCode());
+    }
+
+    @Test
+    void deleteVoucher_existingTypeNull_throwParamError() {
+        Goods existing = goods("g1", "G", null, "food", null, 0, true, 1, true);
+        when(goodsService.getGoodsById("g1")).thenReturn(existing);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> controller.deleteVoucher("g1"));
+        assertEquals(ErrorCode.PARAM_ERROR.getCode(), ex.getCode());
+    }
+
+    @Test
+    void createVoucher_nullRedemptionPoints_throwParamError() {
+        GoodsRequestDto dto = new GoodsRequestDto();
+        dto.setRedemptionPoints(null);
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> controller.createVoucher(dto));
+        assertEquals(ErrorCode.PARAM_ERROR.getCode(), ex.getCode());
+    }
+
+    @Test
+    void createVoucher_nullStock_defaultsToZero() {
+        GoodsRequestDto dto = new GoodsRequestDto();
+        dto.setRedemptionPoints(10);
+        // stock is null in dto => should default to 0
+
+        Goods created = goods("v1", "V", null, "service", "voucher", 0, true, 0, true);
+        when(goodsService.createGoods(any(Goods.class))).thenReturn(created);
+
+        ResponseMessage<Goods> resp = controller.createVoucher(dto);
+        assertEquals(ErrorCode.SUCCESS.getCode(), resp.getCode());
+        verify(goodsService).createGoods(argThat(g -> g.getStock() != null && g.getStock() == 0));
+    }
+
+    @Test
+    void getGoodsById_businessException_rethrows() {
+        when(goodsService.getGoodsById("x")).thenThrow(new BusinessException(ErrorCode.PARAM_ERROR, "bad"));
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> controller.getGoodsById("x"));
+        assertEquals(ErrorCode.PARAM_ERROR.getCode(), ex.getCode());
+    }
+
+    @Test
+    void getAllGoods_keywordMatchOnName() {
+        Goods a = goods("g1", "Coffee Latte", null, "beverage", "normal", 0, true, 1, true);
+        Goods b = goods("g2", "Tea", "Green tea leaf", "beverage", "normal", 0, true, 1, true);
+        when(goodsService.getAllGoods()).thenReturn(List.of(a, b));
+
+        ResponseMessage<Map<String, Object>> resp = controller.getAllGoods(1, 20, null, "coffee", null, true);
+        List<?> items = (List<?>) resp.getData().get("items");
+        assertEquals(1, items.size());
+    }
+
+    @Test
+    void getAllGoods_categoryMatchCaseInsensitive() {
+        Goods a = goods("g1", "A", null, "Food", "normal", 0, true, 1, true);
+        when(goodsService.getAllGoods()).thenReturn(List.of(a));
+
+        ResponseMessage<Map<String, Object>> resp = controller.getAllGoods(1, 20, "FOOD", null, null, true);
+        List<?> items = (List<?>) resp.getData().get("items");
+        assertEquals(1, items.size());
+    }
+
+    @Test
+    void getAllGoods_nullCategoryGoods_filteredOutByCategory() {
+        Goods nullCat = goods("g1", "A", null, null, "normal", 0, true, 1, true);
+        when(goodsService.getAllGoods()).thenReturn(List.of(nullCat));
+
+        ResponseMessage<Map<String, Object>> resp = controller.getAllGoods(1, 20, "food", null, null, true);
+        List<?> items = (List<?>) resp.getData().get("items");
+        assertEquals(0, items.size());
+    }
 }

@@ -20,6 +20,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -145,6 +146,34 @@ class PointsControllerTest {
 
         assertEquals(ErrorCode.SUCCESS.getCode(), result.getCode());
         verify(pointsService).adjustPoints(eq("userId"), eq(100L), any(), any(), any(), any());
+    }
+
+    @Test
+    void adjustPointsAdmin_descriptionProvided_shouldUseDescription() {
+        when(jwtUtils.getUserIdFromToken("mock-token")).thenReturn("adminId");
+        PointsDto.AdjustPointsRequest request = new PointsDto.AdjustPointsRequest();
+        request.points = 50;
+        request.reason = "ReasonText";
+        request.description = "ExplicitDescription";
+
+        ResponseMessage<String> result = pointsController.adjustPointsAdmin(mockToken, "userId", request);
+
+        assertEquals(ErrorCode.SUCCESS.getCode(), result.getCode());
+        verify(pointsService).adjustPoints(eq("userId"), eq(50L), any(), eq("ExplicitDescription"), any(), any());
+    }
+
+    @Test
+    void adjustPointsAdmin_descriptionNull_shouldFallbackToReason() {
+        when(jwtUtils.getUserIdFromToken("mock-token")).thenReturn("adminId");
+        PointsDto.AdjustPointsRequest request = new PointsDto.AdjustPointsRequest();
+        request.points = 70;
+        request.reason = "UseThisReason";
+        request.description = null;
+
+        ResponseMessage<String> result = pointsController.adjustPointsAdmin(mockToken, "userId", request);
+
+        assertEquals(ErrorCode.SUCCESS.getCode(), result.getCode());
+        verify(pointsService).adjustPoints(eq("userId"), eq(70L), any(), eq("UseThisReason"), any(), any());
     }
 
     @Test

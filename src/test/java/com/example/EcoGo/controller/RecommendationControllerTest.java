@@ -51,6 +51,20 @@ class RecommendationControllerTest {
     }
 
     @Test
+    void recommend_ragAvailableButDestinationBlank_shouldNotCallRag_andReturnGeneral() {
+        when(ragService.isAvailable()).thenReturn(true);
+
+        RecommendationRequestDto req = new RecommendationRequestDto();
+        req.setDestination("   ");
+
+        ResponseMessage<RecommendationResponseDto> resp = controller.recommend(req);
+
+        assertEquals(HttpStatus.OK.value(), resp.getCode());
+        assertEquals("General", resp.getData().getTag());
+        verify(ragService, never()).retrieve(anyString(), anyInt());
+    }
+
+    @Test
     void recommend_ragAvailableButNoCitations_shouldFallbackToKeyword() {
         when(ragService.isAvailable()).thenReturn(true);
         when(ragService.retrieve(anyString(), eq(2))).thenReturn(Collections.emptyList());
@@ -64,6 +78,20 @@ class RecommendationControllerTest {
         assertNotNull(resp.getData());
         assertEquals("Eco-Choice", resp.getData().getTag());
         assertTrue(resp.getData().getText().contains("library"));
+    }
+
+    @Test
+    void recommend_ragAvailableNoCitations_unknownDestination_shouldFallbackToFastest() {
+        when(ragService.isAvailable()).thenReturn(true);
+        when(ragService.retrieve(anyString(), eq(2))).thenReturn(Collections.emptyList());
+
+        RecommendationRequestDto req = new RecommendationRequestDto();
+        req.setDestination("Jurong East");
+
+        ResponseMessage<RecommendationResponseDto> resp = controller.recommend(req);
+
+        assertEquals(HttpStatus.OK.value(), resp.getCode());
+        assertEquals("Fastest", resp.getData().getTag());
     }
 
     @Test
@@ -94,6 +122,30 @@ class RecommendationControllerTest {
     }
 
     @Test
+    void recommend_libraryKeyword_chinese_shouldReturnEcoChoice() {
+        when(ragService.isAvailable()).thenReturn(false);
+
+        RecommendationRequestDto req = new RecommendationRequestDto();
+        req.setDestination("图书馆");
+
+        ResponseMessage<RecommendationResponseDto> resp = controller.recommend(req);
+
+        assertEquals("Eco-Choice", resp.getData().getTag());
+    }
+
+    @Test
+    void recommend_libraryKeyword_chineseStudy_shouldReturnEcoChoice() {
+        when(ragService.isAvailable()).thenReturn(false);
+
+        RecommendationRequestDto req = new RecommendationRequestDto();
+        req.setDestination("学习中心");
+
+        ResponseMessage<RecommendationResponseDto> resp = controller.recommend(req);
+
+        assertEquals("Eco-Choice", resp.getData().getTag());
+    }
+
+    @Test
     void recommend_gymKeyword_shouldReturnHealthy() {
         when(ragService.isAvailable()).thenReturn(false);
 
@@ -106,11 +158,95 @@ class RecommendationControllerTest {
     }
 
     @Test
+    void recommend_gymKeyword_chinese_shouldReturnHealthy() {
+        when(ragService.isAvailable()).thenReturn(false);
+
+        RecommendationRequestDto req = new RecommendationRequestDto();
+        req.setDestination("健身房");
+
+        ResponseMessage<RecommendationResponseDto> resp = controller.recommend(req);
+
+        assertEquals("Healthy", resp.getData().getTag());
+    }
+
+    @Test
+    void recommend_gymKeyword_chineseSport_shouldReturnHealthy() {
+        when(ragService.isAvailable()).thenReturn(false);
+
+        RecommendationRequestDto req = new RecommendationRequestDto();
+        req.setDestination("运动场");
+
+        ResponseMessage<RecommendationResponseDto> resp = controller.recommend(req);
+
+        assertEquals("Healthy", resp.getData().getTag());
+    }
+
+    @Test
     void recommend_mrtKeyword_shouldReturnGreenTransit() {
         when(ragService.isAvailable()).thenReturn(false);
 
         RecommendationRequestDto req = new RecommendationRequestDto();
         req.setDestination("Orchard Road");
+
+        ResponseMessage<RecommendationResponseDto> resp = controller.recommend(req);
+
+        assertEquals("Green-Transit", resp.getData().getTag());
+    }
+
+    @Test
+    void recommend_mrtKeyword_chinese_shouldReturnGreenTransit() {
+        when(ragService.isAvailable()).thenReturn(false);
+
+        RecommendationRequestDto req = new RecommendationRequestDto();
+        req.setDestination("地铁站");
+
+        ResponseMessage<RecommendationResponseDto> resp = controller.recommend(req);
+
+        assertEquals("Green-Transit", resp.getData().getTag());
+    }
+
+    @Test
+    void recommend_mrtKeyword_marinaFallback_shouldReturnGreenTransit() {
+        when(ragService.isAvailable()).thenReturn(false);
+
+        RecommendationRequestDto req = new RecommendationRequestDto();
+        req.setDestination("Marina Square");
+
+        ResponseMessage<RecommendationResponseDto> resp = controller.recommend(req);
+
+        assertEquals("Green-Transit", resp.getData().getTag());
+    }
+
+    @Test
+    void recommend_mrtKeyword_mrtLiteral_shouldReturnGreenTransit() {
+        when(ragService.isAvailable()).thenReturn(false);
+
+        RecommendationRequestDto req = new RecommendationRequestDto();
+        req.setDestination("mrt");
+
+        ResponseMessage<RecommendationResponseDto> resp = controller.recommend(req);
+
+        assertEquals("Green-Transit", resp.getData().getTag());
+    }
+
+    @Test
+    void recommend_mrtKeyword_chineseOrchard_shouldReturnGreenTransit() {
+        when(ragService.isAvailable()).thenReturn(false);
+
+        RecommendationRequestDto req = new RecommendationRequestDto();
+        req.setDestination("乌节路");
+
+        ResponseMessage<RecommendationResponseDto> resp = controller.recommend(req);
+
+        assertEquals("Green-Transit", resp.getData().getTag());
+    }
+
+    @Test
+    void recommend_mrtKeyword_chineseMarina_shouldReturnGreenTransit() {
+        when(ragService.isAvailable()).thenReturn(false);
+
+        RecommendationRequestDto req = new RecommendationRequestDto();
+        req.setDestination("滨海湾");
 
         ResponseMessage<RecommendationResponseDto> resp = controller.recommend(req);
 

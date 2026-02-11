@@ -31,6 +31,29 @@ public class StatisticsImplementation implements StatisticsInterface {
     private UserRepository userRepository;
     @Autowired
     private TripRepository tripRepository;
+
+    // Extracted as overridable helpers for deterministic/unit testing and better coverage.
+    // Package-private so tests in the same package can override.
+    LocalDate today() {
+        return LocalDate.now();
+    }
+
+    YearMonth currentMonth() {
+        return YearMonth.now();
+    }
+
+    WeekFields weekFields() {
+        return WeekFields.of(Locale.getDefault());
+    }
+
+    int weeklyPeriods() {
+        return 5;
+    }
+
+    int monthlyPeriods() {
+        return 6;
+    }
+
     @Override
     public AnalyticsSummaryDto getManagementAnalytics(String timeRange) {
         log.info("[getManagementAnalytics] Called with timeRange={}", LogSanitizer.sanitize(timeRange));
@@ -63,10 +86,10 @@ public class StatisticsImplementation implements StatisticsInterface {
         List<AnalyticsSummaryDto.CarbonGrowthPoint> carbonTrend = new ArrayList<>();
 
         if ("weekly".equals(timeRange)) {
-            LocalDate today = LocalDate.now();
-            for (int i = 0; i < 5; i++) {
+            LocalDate today = today();
+            WeekFields weekFields = weekFields();
+            for (int i = 0; i < weeklyPeriods(); i++) {
                 LocalDate weekDate = today.minusWeeks(i);
-                WeekFields weekFields = WeekFields.of(Locale.getDefault());
                 int weekNumber = weekDate.get(weekFields.weekOfWeekBasedYear());
 
                 LocalDateTime weekEnd = weekDate.with(weekFields.dayOfWeek(), 7).atTime(23, 59, 59);
@@ -84,8 +107,8 @@ public class StatisticsImplementation implements StatisticsInterface {
                 carbonTrend.add(new AnalyticsSummaryDto.CarbonGrowthPoint("W" + weekNumber, carbonSavedInWeek, activeUsersInWeek > 0 ? (double)carbonSavedInWeek/activeUsersInWeek : 0));
             }
         } else { // monthly
-            YearMonth currentMonth = YearMonth.now();
-            for (int i = 0; i < 6; i++) {
+            YearMonth currentMonth = currentMonth();
+            for (int i = 0; i < monthlyPeriods(); i++) {
                 YearMonth month = currentMonth.minusMonths(i);
                 LocalDateTime monthEnd = month.atEndOfMonth().atTime(23, 59, 59);
                 LocalDateTime monthStart = month.atDay(1).atStartOfDay();

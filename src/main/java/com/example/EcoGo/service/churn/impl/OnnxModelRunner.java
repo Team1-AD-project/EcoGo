@@ -9,16 +9,23 @@ import java.io.InputStream;
 import java.nio.FloatBuffer;
 import java.util.Map;
 import java.util.Set;
+import java.util.Objects;
 
 @Component
 public class OnnxModelRunner implements ModelRunner {
 
     private static final String MODEL_PATH = "/ml/churn_model.onnx";
 
+    @FunctionalInterface
+    interface TensorFactory {
+        OnnxTensor create(OrtEnvironment env, float[] features, long[] shape) throws OrtException;
+    }
+
     private final OrtEnvironment env;
     private final OrtSession session;
     private final String inputName;
     private final String outputName;
+    private final TensorFactory tensorFactory;
 
     public OnnxModelRunner() {
         try {
@@ -33,11 +40,26 @@ public class OnnxModelRunner implements ModelRunner {
 
             this.inputName = inputs.iterator().next();
             this.outputName = pickProbabilityOutputName(outputs);
+            this.tensorFactory = (e, features, shape) ->
+                    OnnxTensor.createTensor(e, FloatBuffer.wrap(features), shape);
 
             System.out.println(">>> OnnxModelRunner loaded, input=" + inputName + ", output=" + outputName + ", allOutputs=" + outputs);
         } catch (Exception e) {
             throw new IllegalStateException("Failed to load ONNX model from " + MODEL_PATH, e);
         }
+    }
+
+    // Visible for tests: allows mocking ORT classes without loading native libs/model.
+    OnnxModelRunner(OrtEnvironment env,
+                    OrtSession session,
+                    String inputName,
+                    String outputName,
+                    TensorFactory tensorFactory) {
+        this.env = Objects.requireNonNull(env, "env");
+        this.session = Objects.requireNonNull(session, "session");
+        this.inputName = Objects.requireNonNull(inputName, "inputName");
+        this.outputName = Objects.requireNonNull(outputName, "outputName");
+        this.tensorFactory = Objects.requireNonNull(tensorFactory, "tensorFactory");
     }
 
     private static String pickProbabilityOutputName(Set<String> outputs) {
@@ -56,9 +78,8 @@ public class OnnxModelRunner implements ModelRunner {
 
         try {
             long[] shape = new long[]{1, features.length};
-            FloatBuffer fb = FloatBuffer.wrap(features);
 
-            try (OnnxTensor inputTensor = OnnxTensor.createTensor(env, fb, shape);
+            try (OnnxTensor inputTensor = tensorFactory.create(env, features, shape);
                  OrtSession.Result result = session.run(Map.of(inputName, inputTensor))) {
 
                 double p = tryParseProbability(result.get(outputName).get().getValue());

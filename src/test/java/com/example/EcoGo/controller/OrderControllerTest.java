@@ -116,6 +116,28 @@ class OrderControllerTest {
     }
 
     @Test
+    void getAllOrders_whenUserIdEmptyString_shouldNotUseUserFilter_andUseStatusFilter() {
+        when(orderService.getOrdersByStatus("PAID")).thenReturn(new ArrayList<>());
+
+        ResponseMessage<Map<String, Object>> resp = controller.getAllOrders("", "PAID", null, 1, 20);
+
+        assertEquals(ErrorCode.SUCCESS.getCode(), resp.getCode());
+        verify(orderService).getOrdersByStatus("PAID");
+        verify(orderService, never()).getOrdersByUserId(anyString());
+    }
+
+    @Test
+    void getAllOrders_whenStatusEmptyString_shouldNotUseStatusFilter_andUseAllOrders() {
+        when(orderService.getAllOrders()).thenReturn(new ArrayList<>());
+
+        ResponseMessage<Map<String, Object>> resp = controller.getAllOrders(null, "", null, 1, 20);
+
+        assertEquals(ErrorCode.SUCCESS.getCode(), resp.getCode());
+        verify(orderService).getAllOrders();
+        verify(orderService, never()).getOrdersByStatus(anyString());
+    }
+
+    @Test
     void getAllOrders_whenNoFilters_shouldCallGetAllOrders_andIsRedemptionFilterApplied() {
         Order r1 = order("1", "u1", "CREATED", true, LocalDateTime.now());
         Order r2 = order("2", "u2", "CREATED", false, LocalDateTime.now());
@@ -161,12 +183,39 @@ class OrderControllerTest {
         assertEquals("2", orders.get(0).getId());
     }
 
+    @Test
+    void getAllOrders_sortComparator_shouldCoverNonNullVsNullDirection() {
+        // Force comparator to be invoked with a(non-null), b(null)
+        Order nonNull = order("1", "u1", "CREATED", false, LocalDateTime.now());
+        Order nullDate = order("2", "u1", "CREATED", false, null);
+        // Put non-null first so TimSort compares (a=nonNull, b=nullDate)
+        when(orderService.getAllOrders()).thenReturn(new ArrayList<>(List.of(nonNull, nullDate)));
+
+        ResponseMessage<Map<String, Object>> resp = controller.getAllOrders(null, null, null, 1, 20);
+        assertEquals(ErrorCode.SUCCESS.getCode(), resp.getCode());
+
+        @SuppressWarnings("unchecked")
+        List<Order> orders = (List<Order>) resp.getData().get("orders");
+        // non-null createdAt should come first after sort
+        assertEquals("1", orders.get(0).getId());
+        assertEquals("2", orders.get(1).getId());
+    }
+
     // ---------- getOrderById ----------
     @Test
     void getOrderById_idBlank_throwParamCannotBeNull() {
         BusinessException ex = assertThrows(
                 BusinessException.class,
                 () -> controller.getOrderById("  ")
+        );
+        assertEquals(ErrorCode.PARAM_CANNOT_BE_NULL.getCode(), ex.getCode());
+    }
+
+    @Test
+    void getOrderById_idNull_throwParamCannotBeNull() {
+        BusinessException ex = assertThrows(
+                BusinessException.class,
+                () -> controller.getOrderById(null)
         );
         assertEquals(ErrorCode.PARAM_CANNOT_BE_NULL.getCode(), ex.getCode());
     }
@@ -241,6 +290,15 @@ class OrderControllerTest {
     }
 
     @Test
+    void updateOrder_idNull_throwParamCannotBeNull() {
+        BusinessException ex = assertThrows(
+                BusinessException.class,
+                () -> controller.updateOrder(null, new OrderRequestDto())
+        );
+        assertEquals(ErrorCode.PARAM_CANNOT_BE_NULL.getCode(), ex.getCode());
+    }
+
+    @Test
     void updateOrder_nullBody_throwParamError() {
         BusinessException ex = assertThrows(
                 BusinessException.class,
@@ -284,6 +342,15 @@ class OrderControllerTest {
     }
 
     @Test
+    void deleteOrder_idNull_throwParamCannotBeNull() {
+        BusinessException ex = assertThrows(
+                BusinessException.class,
+                () -> controller.deleteOrder(null)
+        );
+        assertEquals(ErrorCode.PARAM_CANNOT_BE_NULL.getCode(), ex.getCode());
+    }
+
+    @Test
     void deleteOrder_success() {
         doNothing().when(orderService).deleteOrder("x");
         ResponseMessage<Void> resp = controller.deleteOrder("x");
@@ -297,6 +364,15 @@ class OrderControllerTest {
         BusinessException ex = assertThrows(
                 BusinessException.class,
                 () -> controller.getUserOrderHistoryForMobile("  ", null, 1, 10)
+        );
+        assertEquals(ErrorCode.PARAM_CANNOT_BE_NULL.getCode(), ex.getCode());
+    }
+
+    @Test
+    void getUserOrderHistoryForMobile_userIdNull_throwParamCannotBeNull() {
+        BusinessException ex = assertThrows(
+                BusinessException.class,
+                () -> controller.getUserOrderHistoryForMobile(null, null, 1, 10)
         );
         assertEquals(ErrorCode.PARAM_CANNOT_BE_NULL.getCode(), ex.getCode());
     }
@@ -370,10 +446,28 @@ class OrderControllerTest {
     }
 
     @Test
+    void updateOrderStatus_idNull_throwParamCannotBeNull() {
+        BusinessException ex = assertThrows(
+                BusinessException.class,
+                () -> controller.updateOrderStatus(null, "PAID")
+        );
+        assertEquals(ErrorCode.PARAM_CANNOT_BE_NULL.getCode(), ex.getCode());
+    }
+
+    @Test
     void updateOrderStatus_statusBlank_throwParamCannotBeNull() {
         BusinessException ex = assertThrows(
                 BusinessException.class,
                 () -> controller.updateOrderStatus("x", "  ")
+        );
+        assertEquals(ErrorCode.PARAM_CANNOT_BE_NULL.getCode(), ex.getCode());
+    }
+
+    @Test
+    void updateOrderStatus_statusNull_throwParamCannotBeNull() {
+        BusinessException ex = assertThrows(
+                BusinessException.class,
+                () -> controller.updateOrderStatus("x", null)
         );
         assertEquals(ErrorCode.PARAM_CANNOT_BE_NULL.getCode(), ex.getCode());
     }
@@ -402,5 +496,161 @@ class OrderControllerTest {
 
         // 验证 patch 的 status 传入
         verify(orderService).updateOrder(eq("x"), argThat(o -> "PAID".equals(o.getStatus())));
+    }
+
+    // ---------- Additional coverage tests ----------
+
+    @Test
+    void getAllOrders_sortBothNullCreatedAt_noCrash() {
+        Order a = order("1", "u1", "CREATED", false, null);
+        Order b = order("2", "u1", "CREATED", false, null);
+        when(orderService.getAllOrders()).thenReturn(new ArrayList<>(List.of(a, b)));
+
+        ResponseMessage<Map<String, Object>> resp = controller.getAllOrders(null, null, null, 1, 20);
+        assertEquals(ErrorCode.SUCCESS.getCode(), resp.getCode());
+    }
+
+    @Test
+    void getAllOrders_paginationBeyondRange_returnsEmpty() {
+        Order a = order("1", "u1", "CREATED", false, LocalDateTime.now());
+        when(orderService.getAllOrders()).thenReturn(new ArrayList<>(List.of(a)));
+
+        // page 5 with size 20 => fromIndex=80 > total=1 => empty
+        ResponseMessage<Map<String, Object>> resp = controller.getAllOrders(null, null, null, 5, 20);
+        assertEquals(ErrorCode.SUCCESS.getCode(), resp.getCode());
+        @SuppressWarnings("unchecked")
+        List<Order> orders = (List<Order>) resp.getData().get("orders");
+        assertEquals(0, orders.size());
+    }
+
+    @Test
+    void getAllOrders_isRedemptionFalse_filtersCorrectly() {
+        Order r1 = order("1", "u1", "CREATED", true, LocalDateTime.now());
+        Order r2 = order("2", "u2", "CREATED", false, LocalDateTime.now());
+        when(orderService.getAllOrders()).thenReturn(new ArrayList<>(List.of(r1, r2)));
+
+        ResponseMessage<Map<String, Object>> resp = controller.getAllOrders(null, null, false, 1, 20);
+        @SuppressWarnings("unchecked")
+        List<Order> orders = (List<Order>) resp.getData().get("orders");
+        assertEquals(1, orders.size());
+        assertEquals("2", orders.get(0).getId());
+    }
+
+    @Test
+    void getUserOrderHistoryForMobile_sizeInvalid_throwParamError() {
+        BusinessException ex = assertThrows(
+                BusinessException.class,
+                () -> controller.getUserOrderHistoryForMobile("u1", null, 1, 0)
+        );
+        assertEquals(ErrorCode.PARAM_ERROR.getCode(), ex.getCode());
+    }
+
+    @Test
+    void getUserOrderHistoryForMobile_noStatusFilter_returnsAll() {
+        Order a = order("1", "u1", "CREATED", true, LocalDateTime.now().minusDays(1));
+        Order b = order("2", "u1", "PAID", false, LocalDateTime.now());
+        when(orderService.getOrdersByUserId("u1")).thenReturn(new ArrayList<>(List.of(a, b)));
+
+        ResponseMessage<Map<String, Object>> resp = controller.getUserOrderHistoryForMobile("u1", null, 1, 10);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> orders = (List<Map<String, Object>>) resp.getData().get("orders");
+        assertEquals(2, orders.size());
+    }
+
+    @Test
+    void getUserOrderHistoryForMobile_statusEmptyString_shouldNotFilter() {
+        Order a = order("1", "u1", "CREATED", true, LocalDateTime.now().minusDays(1));
+        Order b = order("2", "u1", "PAID", false, LocalDateTime.now());
+        when(orderService.getOrdersByUserId("u1")).thenReturn(new ArrayList<>(List.of(a, b)));
+
+        ResponseMessage<Map<String, Object>> resp = controller.getUserOrderHistoryForMobile("u1", "", 1, 10);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> orders = (List<Map<String, Object>>) resp.getData().get("orders");
+        assertEquals(2, orders.size());
+    }
+
+    @Test
+    void getUserOrderHistoryForMobile_sortComparator_shouldCoverNonNullVsNullDirection() {
+        Order nonNull = order("1", "u1", "CREATED", false, LocalDateTime.now());
+        Order nullDate = order("2", "u1", "PAID", false, null);
+        // Put null first so TimSort insertion compares (a=nonNull, b=nullDate),
+        // which hits: if (b.getCreatedAt() == null) return -1;
+        when(orderService.getOrdersByUserId("u1")).thenReturn(new ArrayList<>(List.of(nullDate, nonNull)));
+
+        ResponseMessage<Map<String, Object>> resp = controller.getUserOrderHistoryForMobile("u1", null, 1, 10);
+        assertEquals(ErrorCode.SUCCESS.getCode(), resp.getCode());
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> orders = (List<Map<String, Object>>) resp.getData().get("orders");
+        // Should preserve sort: non-null createdAt first
+        assertEquals("1", orders.get(0).get("id"));
+    }
+
+    @Test
+    void getUserOrderHistoryForMobile_sortComparator_shouldCoverBNullBranch() {
+        // Use 3 elements so sorting performs more comparisons and reliably hits:
+        // if (b.getCreatedAt() == null) return -1;
+        Order newer = order("1", "u1", "CREATED", false, LocalDateTime.now());
+        Order older = order("2", "u1", "CREATED", false, LocalDateTime.now().minusDays(1));
+        Order nullDate = order("3", "u1", "CREATED", false, null);
+
+        when(orderService.getOrdersByUserId("u1")).thenReturn(new ArrayList<>(List.of(older, newer, nullDate)));
+
+        ResponseMessage<Map<String, Object>> resp = controller.getUserOrderHistoryForMobile("u1", null, 1, 10);
+        assertEquals(ErrorCode.SUCCESS.getCode(), resp.getCode());
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> orders = (List<Map<String, Object>>) resp.getData().get("orders");
+        // newer should be first, nullDate last
+        assertEquals("1", orders.get(0).get("id"));
+        assertEquals("3", orders.get(2).get("id"));
+    }
+
+    @Test
+    void getUserOrderHistoryForMobile_paginationBeyondRange_returnsEmpty() {
+        Order a = order("1", "u1", "CREATED", true, LocalDateTime.now());
+        when(orderService.getOrdersByUserId("u1")).thenReturn(new ArrayList<>(List.of(a)));
+
+        // page=5, size=10 => fromIndex=40 > total=1
+        ResponseMessage<Map<String, Object>> resp = controller.getUserOrderHistoryForMobile("u1", null, 5, 10);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> orders = (List<Map<String, Object>>) resp.getData().get("orders");
+        assertEquals(0, orders.size());
+    }
+
+    @Test
+    void getUserOrderHistoryForMobile_sortBothNullCreatedAt() {
+        Order a = order("1", "u1", "CREATED", false, null);
+        Order b = order("2", "u1", "PAID", false, null);
+        when(orderService.getOrdersByUserId("u1")).thenReturn(new ArrayList<>(List.of(a, b)));
+
+        ResponseMessage<Map<String, Object>> resp = controller.getUserOrderHistoryForMobile("u1", null, 1, 10);
+        assertEquals(ErrorCode.SUCCESS.getCode(), resp.getCode());
+    }
+
+    @Test
+    void getUserOrderHistoryForMobile_itemCountMapping() {
+        Order a = order("1", "u1", "CREATED", false, LocalDateTime.now());
+        Order.OrderItem item1 = new Order.OrderItem();
+        Order.OrderItem item2 = new Order.OrderItem();
+        a.setItems(List.of(item1, item2));
+        when(orderService.getOrdersByUserId("u1")).thenReturn(new ArrayList<>(List.of(a)));
+
+        ResponseMessage<Map<String, Object>> resp = controller.getUserOrderHistoryForMobile("u1", null, 1, 10);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> orders = (List<Map<String, Object>>) resp.getData().get("orders");
+        assertEquals(2, orders.get(0).get("itemCount"));
+    }
+
+    @Test
+    void getUserOrderHistoryForMobile_nullItemsList() {
+        Order a = order("1", "u1", "CREATED", false, LocalDateTime.now());
+        a.setItems(null);
+        when(orderService.getOrdersByUserId("u1")).thenReturn(new ArrayList<>(List.of(a)));
+
+        ResponseMessage<Map<String, Object>> resp = controller.getUserOrderHistoryForMobile("u1", null, 1, 10);
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> orders = (List<Map<String, Object>>) resp.getData().get("orders");
+        assertEquals(0, orders.get(0).get("itemCount"));
     }
 }
