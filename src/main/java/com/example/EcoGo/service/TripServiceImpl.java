@@ -110,7 +110,8 @@ public class TripServiceImpl implements TripService {
                 }
             }
         }
-        // Round to 2 decimal places
+        // Convert g → display unit (/100), round to 2 decimal places
+        carbonSaved = carbonSaved / 100.0;
         carbonSaved = Math.round(carbonSaved * 100.0) / 100.0;
         trip.setCarbonSaved(carbonSaved);
 
@@ -122,8 +123,8 @@ public class TripServiceImpl implements TripService {
             trip.setPolylinePoints(points);
         }
 
-        // Calculate points: carbon取整 * 10, VIP双倍
-        long basePoints = (long) Math.round(carbonSaved) * 10;
+        // Points = round(carbonSaved * 100), VIP双倍
+        long basePoints = Math.round(carbonSaved * 100);
 
         // Check if user is VIP and double points switch is enabled
         User user = userRepository.findByUserid(userId)

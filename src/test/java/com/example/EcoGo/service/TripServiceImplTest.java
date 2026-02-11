@@ -143,10 +143,10 @@ class TripServiceImplTest {
         assertEquals("completed", result.getCarbonStatus());
         assertNotNull(result.getEndPoint());
         assertNotNull(result.getEndLocation());
-        // carbonSaved = (100 - 0) * 2.5 = 250.0
-        assertEquals(250.0, result.getCarbonSaved(), 0.01);
-        // basePoints = round(250) * 10 = 2500, not VIP so no doubling
-        assertEquals(2500, result.getPointsGained());
+        // carbonSaved = (100 - 0) * 2.5 / 100 = 2.5
+        assertEquals(2.5, result.getCarbonSaved(), 0.01);
+        // basePoints = round(2.5 * 100) = 250, not VIP so no doubling
+        assertEquals(250, result.getPointsGained());
         verify(pointsService).settle(eq("user1"), any(PointsDto.SettleResult.class));
         verify(userRepository).save(testUser);
     }
@@ -168,8 +168,8 @@ class TripServiceImplTest {
 
         Trip result = tripService.completeTrip("user1", "trip1", buildCompleteRequest());
 
-        // basePoints = 2500, VIP with double enabled = 5000
-        assertEquals(5000, result.getPointsGained());
+        // basePoints = 250, VIP with double enabled = 500
+        assertEquals(500, result.getPointsGained());
     }
 
     @Test
@@ -231,8 +231,8 @@ class TripServiceImplTest {
 
         tripService.completeTrip("user1", "trip1", buildCompleteRequest());
 
-        // totalCarbon was 50.0, now should be 50.0 + 250.0 = 300.0
-        assertEquals(300.0, testUser.getTotalCarbon(), 0.01);
+        // totalCarbon was 50.0, now should be 50.0 + 2.5 = 52.5
+        assertEquals(52.5, testUser.getTotalCarbon(), 0.01);
         verify(userRepository).save(testUser);
     }
 
