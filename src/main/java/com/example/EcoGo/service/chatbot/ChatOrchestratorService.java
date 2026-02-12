@@ -971,7 +971,7 @@ public class ChatOrchestratorService {
             String statusIcon = busStatusIcon(statusStr);
 
             sb.append(String.format("%s Route %s — %d min\n",
-                    statusIcon, arrival.get(KEY_ROUTE), arrival.get("etaMinutes")));
+                    statusIcon, arrival.get(KEY_ROUTE), ((Number) arrival.get("etaMinutes")).intValue()));
             shown++;
         }
 
